@@ -458,6 +458,8 @@ class MainActivity : ComponentActivity() {
      * [ThemePrefs] so the choice survives a restart.
      */
     private var darkTheme by mutableStateOf<Boolean?>(null)
+    /** 0..100. The control only tightens the existing content gate, never disables it. */
+    private var protectionLevel by mutableFloatStateOf(100f)
     private var confirmMetered by mutableStateOf(false)
 
     /**
@@ -1545,6 +1547,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        protectionLevel = getSharedPreferences("face_mma_protection", MODE_PRIVATE)
+            .getFloat("level", 100f).coerceIn(0f, 100f)
+        ContentGate.setProtectionLevel(protectionLevel)
         BugReport.install(this)
         NativePipe.ensureLoaded()
         // BEFORE the first probe, and that ordering is the whole point: ModelPaths caches
@@ -1907,6 +1912,13 @@ class MainActivity : ComponentActivity() {
                                 log = log,
                                 opts = opts,
                                 onOptsChange = ::applyOpts,
+                                protectionLevel = protectionLevel,
+                                onProtectionLevelChange = { level ->
+                                    protectionLevel = level.coerceIn(0f, 100f)
+                                    ContentGate.setProtectionLevel(protectionLevel)
+                                    getSharedPreferences("face_mma_protection", MODE_PRIVATE)
+                                        .edit().putFloat("level", protectionLevel).apply()
+                                },
                                 onSaveSource = ::toggleShownSourceSaved,
                                 sourceSaved = shownSourceSaved,
                                 onOpenFaces = { refreshSavedFaces(); facesDialogOpen = true },
