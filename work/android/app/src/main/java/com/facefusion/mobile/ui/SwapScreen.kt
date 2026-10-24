@@ -188,6 +188,8 @@ fun SwapScreen(
     log: String,
     opts: SwapOptions,
     onOptsChange: (SwapOptions) -> Unit,
+    protectionLevel: Float = 100f,
+    onProtectionLevelChange: (Float) -> Unit = {},
     hasHyperswap1b: Boolean = false,
     hasHyperswap1c: Boolean = false,
     hasEnhancer: Boolean,
@@ -370,6 +372,34 @@ fun SwapScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("مؤشر الحماية", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text("\u0024{protectionLevel.roundToInt()}%", style = MaterialTheme.typography.labelLarge)
+                }
+                Slider(
+                    value = protectionLevel,
+                    onValueChange = onProtectionLevelChange,
+                    valueRange = 0f..100f,
+                    steps = 19,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("حماية إضافية", style = MaterialTheme.typography.labelSmall)
+                    Text("الحماية الأساسية", style = MaterialTheme.typography.labelSmall)
+                }
+                Text(
+                    "المؤشر يرفع مستوى الحماية فقط ولا يعطّل الفحص. لو زوّدت الحماية قد تزيد حالات الرفض.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         // ---------------------------------------------------------------- processors
         //
         // Above Advanced, and named the way FaceFusion names them. The enhancer is a
