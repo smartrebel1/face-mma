@@ -27,8 +27,20 @@ import java.io.File
  */
 object ContentGate {
 
-    /** content_analyser.py:detect_with_nsfw_2 -- flagged above this. */
+    /** Upstream baseline. The protection control may only tighten this threshold. */
     const val THRESHOLD = 0.25f
+
+    /** Current threshold, volatile because UI and API requests can read it on different threads. */
+    @Volatile
+    private var activeThreshold: Float = THRESHOLD
+
+    /** 0..100; higher means more protection. Never loosens the original 0.25 gate. */
+    fun setProtectionLevel(level: Float) {
+        val clamped = level.coerceIn(0f, 100f)
+        activeThreshold = THRESHOLD - (clamped / 100f) * 0.05f
+    }
+
+    fun protectionThreshold(): Float = activeThreshold
 
     /** content_analyser.py:analyse_video -- refuse the video above this percentage. */
     const val VIDEO_RATE_PERCENT = 10.0
@@ -69,7 +81,7 @@ object ContentGate {
 
     private fun judge(score: Float): Verdict = when {
         score.isNaN() -> Verdict.ERROR
-        score > THRESHOLD -> Verdict.BLOCK
+        score > activeThreshold -> Verdict.BLOCK
         else -> Verdict.ALLOW
     }
 
