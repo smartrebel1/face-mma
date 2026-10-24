@@ -389,8 +389,8 @@ fun SwapScreen(
                     steps = 19,
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("حماية إضافية", style = MaterialTheme.typography.labelSmall)
                     Text("الحماية الأساسية", style = MaterialTheme.typography.labelSmall)
+                    Text("حماية إضافية", style = MaterialTheme.typography.labelSmall)
                 }
                 Text(
                     "المؤشر يرفع مستوى الحماية فقط ولا يعطّل الفحص. لو زوّدت الحماية قد تزيد حالات الرفض.",
