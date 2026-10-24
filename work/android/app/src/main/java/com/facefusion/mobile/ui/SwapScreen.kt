@@ -380,7 +380,7 @@ fun SwapScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("مؤشر الحماية", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.weight(1f))
-                    Text("\u0024{protectionLevel.roundToInt()}%", style = MaterialTheme.typography.labelLarge)
+                    Text(protectionLevel.roundToInt().toString() + "%", style = MaterialTheme.typography.labelLarge)
                 }
                 Slider(
                     value = protectionLevel,
