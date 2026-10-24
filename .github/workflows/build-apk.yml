@@ -55,17 +55,21 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --no-daemon :app:assembleDebug -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native"
 
-      - name: Verify APK exists
+      - name: Find and verify APK
         run: |
           set -euo pipefail
-          APK="work/android/app/build/outputs/apk/debug/app-debug.apk"
+          echo "APK outputs found:"
+          find work/android -type f -path '*/build/outputs/apk/*/*.apk' -print
+          APK="$(find work/android -type f -path '*/build/outputs/apk/*/*.apk' -name '*.apk' -print -quit)"
+          test -n "$APK"
           test -s "$APK"
-          sha256sum "$APK"
+          cp "$APK" "$RUNNER_TEMP/face-mma-debug.apk"
+          sha256sum "$RUNNER_TEMP/face-mma-debug.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: face-mma-debug-apk
-          path: work/android/app/build/outputs/apk/debug/*.apk
+          path: ${{ runner.temp }}/face-mma-debug.apk
           if-no-files-found: error
           retention-days: 14
