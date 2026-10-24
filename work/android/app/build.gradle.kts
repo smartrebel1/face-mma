@@ -70,6 +70,12 @@ val qnnTiers = (System.getenv("QNN_HTP_TIERS") ?: "68 69 73 75 79 81")
     .trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
 val qnnStage by tasks.registering {
     doLast {
+        // A prebuilt-native build reuses the native libraries from the matching upstream APK;
+        // it must not try to stage the Qualcomm SDK from source.
+        if (providers.gradleProperty("prebuiltNativeDir").orNull != null) {
+            logger.lifecycle("prebuiltNativeDir supplied; skipping source QNN staging")
+            return@doLast
+        }
         val required = mutableListOf(
             file("src/main/cpp/include/QNN/QnnBackend.h"),
             file("src/main/jniLibs/arm64-v8a/libQnnHtp.so"),
