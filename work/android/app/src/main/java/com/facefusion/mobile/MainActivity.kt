@@ -459,7 +459,7 @@ class MainActivity : ComponentActivity() {
      */
     private var darkTheme by mutableStateOf<Boolean?>(null)
     /** 0..100. The control only tightens the existing content gate, never disables it. */
-    private var protectionLevel by mutableFloatStateOf(100f)
+    private var protectionLevel by mutableFloatStateOf(0f)
     private var confirmMetered by mutableStateOf(false)
 
     /**
@@ -1548,7 +1548,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         protectionLevel = getSharedPreferences("face_mma_protection", MODE_PRIVATE)
-            .getFloat("level", 100f).coerceIn(0f, 100f)
+            .getFloat("level", 0f).coerceIn(0f, 100f)
         ContentGate.setProtectionLevel(protectionLevel)
         BugReport.install(this)
         NativePipe.ensureLoaded()
