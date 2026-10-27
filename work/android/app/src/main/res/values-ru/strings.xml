@@ -13,6 +13,7 @@
 -->
 <resources>
 
+    <string name="nav_webcam">Веб-камера</string>
     <string name="nav_swap">Замена</string>
     <string name="nav_settings">Настройки</string>
     <string name="nav_live">Live</string>

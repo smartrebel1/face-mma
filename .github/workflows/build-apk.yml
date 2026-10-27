@@ -8,7 +8,7 @@ on:
       - ".github/workflows/build-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
@@ -49,6 +49,12 @@ jobs:
           echo "Staged native libraries:"
           ls -lh "$RUNNER_TEMP/face-mma-native/arm64-v8a"
 
+      - name: Run unit tests
+        working-directory: work/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:testDebugUnitTest -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native"
+
       - name: Build debug APK
         working-directory: work/android
         run: |
@@ -73,3 +79,17 @@ jobs:
           path: ${{ runner.temp }}/face-mma-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish Debug APK as GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
+          TAG="ci-apk-${TIMESTAMP}-${SHORT_SHA}"
+          SHA256="$(sha256sum "$RUNNER_TEMP/face-mma-debug.apk" | awk '{print $1}')"
+          NOTES="Automated Debug APK build for Android Virtual Webcam & Live Stream Video Player (commit ${GITHUB_SHA}, branch ${GITHUB_REF_NAME}).\n\nSHA256: \`${SHA256}\`"
+          gh release create "$TAG" "$RUNNER_TEMP/face-mma-debug.apk" \
+            --title "Virtual Webcam & Live Stream Studio APK (${TAG})" \
+            --notes "$(printf '%b' "$NOTES")"

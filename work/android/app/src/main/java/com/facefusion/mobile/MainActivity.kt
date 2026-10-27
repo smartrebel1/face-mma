@@ -1,11 +1,14 @@
 package com.facefusion.mobile
 
+import android.app.PictureInPictureParams
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.facefusion.mobile.ui.*
+import com.facefusion.mobile.webcam.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -246,8 +250,17 @@ class MainActivity : ComponentActivity() {
      */
     private var savedPathLabel by mutableStateOf<String?>(null)
 
-    // ---- UI shell
-    private var screen by mutableStateOf(Screen.Swap)
+    // ---- UI shell (defaults to Virtual Webcam & Live Stream Studio)
+    private var screen by mutableStateOf(Screen.Webcam)
+    private var webcamController: WebcamController? = null
+
+    private val pickWebcamVideos = registerForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            webcamController?.addVideosFromUris(uris)
+        }
+    }
 
     // ---- Live (dev builds only; the tab does not exist otherwise) ----
     private val live = LiveEngine()
@@ -1699,6 +1712,11 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.getStringExtra("download") != null) onDownloadTapped()
 
+        val wc = webcamController ?: WebcamController(this, lifecycleScope).also {
+            webcamController = it
+        }
+        val isExternalVideoCapture = intent?.action == MediaStore.ACTION_VIDEO_CAPTURE
+
         setContent {
             FaceFusionTheme(darkTheme) {
                 // The download runs in a service, on its own thread. Rather than trust a
@@ -1862,6 +1880,18 @@ class MainActivity : ComponentActivity() {
                 ) { pad ->
                     Box(Modifier.padding(pad)) {
                         when (screen) {
+                            Screen.Webcam -> WebcamScreen(
+                                controller = wc,
+                                onPickVideos = {
+                                    pickWebcamVideos.launch(arrayOf("video/*"))
+                                },
+                                onEnterPip = { enterWebcamPip(wc) },
+                                isExternalCaptureIntent = isExternalVideoCapture,
+                                onDeliverCapturedVideo = { item ->
+                                    deliverCapturedVideo(item)
+                                },
+                            )
+
                             Screen.Swap -> SwapScreen(
                                 sourceThumb = sourceThumb,
                                 sourceThumbs = sources.map { it.thumb },
@@ -2328,14 +2358,60 @@ class MainActivity : ComponentActivity() {
         refreshModelsMissing()
     }
 
+    override fun onPause() {
+        super.onPause()
+        webcamController?.onHostPause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        webcamController?.release()
+        webcamController = null
         scrubJob?.cancel()
         stopVoicePlayback()
         // Before the preview's own teardown: the pump holds the pipeline this is about to
         // release, and stop() is what makes it let go.
         player.stop()
         previews.release()
+    }
+
+    private fun enterWebcamPip(wc: WebcamController) {
+        runCatching {
+            val w = wc.videoWidth.coerceIn(9, 1920)
+            val h = wc.videoHeight.coerceIn(9, 1920)
+            val ratio = Rational(w, h).let { r ->
+                if (r.toFloat() in 0.42f..2.38f) r else Rational(9, 16)
+            }
+            wc.setCleanStageFullscreen(true)
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(ratio)
+                .build()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    private fun deliverCapturedVideo(item: PlaylistItem) {
+        runCatching {
+            val sourceUri = Uri.parse(item.uriString)
+            val targetExtra = intent?.getParcelableExtra(MediaStore.EXTRA_OUTPUT, Uri::class.java)
+            if (targetExtra != null) {
+                contentResolver.openInputStream(sourceUri)?.use { input ->
+                    contentResolver.openOutputStream(targetExtra)?.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                setResult(RESULT_OK, Intent().apply {
+                    data = targetExtra
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+            } else {
+                setResult(RESULT_OK, Intent().apply {
+                    data = sourceUri
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+            }
+            finish()
+        }
     }
 
     private fun fmt(ms: Float): String {

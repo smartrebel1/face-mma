@@ -17,6 +17,7 @@
 -->
 <resources>
 
+    <string name="nav_webcam">虛擬鏡頭</string>
     <string name="nav_swap">換臉</string>
     <string name="nav_settings">設定</string>
     <string name="nav_live">實況</string>

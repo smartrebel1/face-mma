@@ -29,6 +29,7 @@
 <resources>
 
     <!-- ==================================================== navigation and chrome -->
+    <string name="nav_webcam">بث الفيديو / Cam</string>
     <string name="nav_swap">Swap</string>
     <string name="nav_settings">Settings</string>
 
