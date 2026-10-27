@@ -126,5 +126,16 @@
             android:name=".ApiService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!--
+            Foreground service for a SINGLE photo/video swap. Holds the process
+            in the foreground while a Dimensity CPU swap runs (5+ minutes for
+            a long clip), so locking the screen or switching apps does not
+            get the app killed mid-frame. Mirrors BatchService.
+        -->
+        <service
+            android:name=".SwapService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

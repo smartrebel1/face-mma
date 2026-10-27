@@ -493,7 +493,7 @@ android {
         // 114 = 0.9.40 as released: the same content as 112, numbered above 113 so it
         // installs over the one phone that had it.
         // 115 = models can download from hf-mirror.com (issue #18).
-        versionCode = 250
+        versionCode = 251
         versionName = "0.9.41$variantTag"    // "-dev" == NO content gate
         setProperty("archivesBaseName", "facefusion-mobile-$versionName")
         manifestPlaceholders["appLabel"] = appLabel

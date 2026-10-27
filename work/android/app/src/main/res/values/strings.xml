@@ -561,6 +561,9 @@
     <string name="notif_batch_title">Swapping clips</string>
     <string name="notif_batch_text">Clip %1$d of %2$d: %3$s</string>
     <string name="notif_batch_channel">Batch swap</string>
+    <string name="notif_swap_video_title">Swapping video…</string>
+    <string name="notif_swap_photo_title">Swapping photo…</string>
+    <string name="notif_swap_channel">Face swap</string>
     <string name="opt_reference_distance">Match the chosen face</string>
     <string name="opt_reference_distance_hint">Only used after tapping a face on the target. Higher matches more people; lower can stop matching the same person when they turn away.</string>
     <string name="swap_lips_pick">Choose who gets the lip sync</string>

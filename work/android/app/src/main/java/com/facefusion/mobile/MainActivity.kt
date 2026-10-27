@@ -4678,6 +4678,13 @@ class MainActivity : ComponentActivity() {
                 busy = false
                 return@launch
             }
+            // Promote this process to the foreground for the duration of the swap so
+            // locking the screen or switching apps does not get a multi-minute Dimensity
+            // video swap killed. (Photo swaps are seconds but showing the same progress
+            // notification feels consistent.)
+            val swapKind = if (imageTarget) "photo" else "video"
+            SwapStatus.begin(swapKind)
+            SwapService.start(this@MainActivity)
             val result = withContext(Dispatchers.Default) {
                 runCatching {
                     val models = modelDir()
@@ -4787,6 +4794,11 @@ class MainActivity : ComponentActivity() {
                                 framesDone = done; framesTotal = total
                                 progress = if (total > 0) done.toFloat() / total else 0f
                                 elapsedS = (now - t0) / 1000.0
+                                val eta = if (done > 0 && total > 0) {
+                                    (elapsedS * (total - done) / done.toDouble()).toLong()
+                                        .coerceAtMost(3600L * 3)
+                                } else 0L
+                                SwapStatus.progress(done, total, eta)
                             }
                         },
                         onFrame = { bgr, w, h ->
@@ -4803,7 +4815,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onLog = { appendLog(it) },
-                        isCancelled = { cancelRequested },
+                        isCancelled = { cancelRequested || SwapStatus.cancelled },
                     ).swap(tgt!!.absolutePath, out.absolutePath).getOrThrow()
 
                     appendLog("total %.1f s".format((System.currentTimeMillis() - t0) / 1000.0))
@@ -4845,6 +4857,8 @@ class MainActivity : ComponentActivity() {
             }
             NativePipe.release()
             PipeGuard.release()
+            SwapStatus.end()
+            SwapService.stop(this@MainActivity)
             busy = false
         }
     }

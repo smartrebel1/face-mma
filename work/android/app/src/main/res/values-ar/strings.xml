@@ -196,4 +196,13 @@
     <string name="mma_fix_dialog_title">إصلاح النماذج</string>
     <string name="mma_fix_dialog_body">سيتم إعادة تحميل الملفات الناقصة أو التالفة فقط، ولن يتم لمس الملفات السليمة. هذا لا يحذف أي إعدادات.</string>
 
+    <!-- ==================================================== foreground swap notifications -->
+    <string name="notif_cancel">إلغاء</string>
+    <string name="notif_swap_video_title">جاري تبديل الفيديو…</string>
+    <string name="notif_swap_photo_title">جاري تبديل الصورة…</string>
+    <string name="notif_swap_channel">تبديل الوجوه</string>
+    <string name="notif_batch_title">جاري تبديل الدفعة</string>
+    <string name="notif_batch_text">مقطع %1$d من %2$d: %3$s</string>
+    <string name="notif_batch_channel">تبديل الدُفعات</string>
+
 </resources>
