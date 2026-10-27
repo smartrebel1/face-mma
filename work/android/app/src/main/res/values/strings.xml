@@ -48,6 +48,7 @@
     <string name="swap_choose_another_target">Choose another target</string>
     <string name="swap_remove_target">Remove target</string>
     <string name="swap_remove_source">Remove source face</string>
+    <string name="swap_add_another_face">Add another face (multi-swap)</string>
     <string name="status_camera_denied">Camera permission is needed to take a photo or video</string>
     <string name="swap_capture_photo">Take a photo</string>
     <string name="swap_capture_video">Record a video</string>
@@ -104,7 +105,7 @@
     <string name="swap_share">Share</string>
 
     <string name="swap_advanced">Advanced</string>
-    <string name="swap_defaults">FaceFusion defaults</string>
+    <string name="swap_defaults">MMA defaults</string>
     <!-- %1$s weight, %2$s pixel boost label, %3$s mask blur -->
     <string name="swap_advanced_summary">weight %1$s   %2$s   blur %3$s</string>
     <string name="swap_reset_defaults">Reset to defaults</string>
@@ -433,6 +434,83 @@
     <!-- %1$s is the gate_error sentence, %2$s a technical reason that is not translated -->
     <string name="gate_error_detail">%1$s (%2$s)</string>
     <string name="gate_blocked_generic">Explicit content not allowed</string>
+    <!-- The adjustable refusal. ⚠ MUST stay distinguishable from gate_blocked: this one
+         says the SENSITIVITY setting is what refused it, and that one says a mandatory
+         safeguard did. A translation that collapses them destroys the distinction the
+         whole control exists to make. %1$s is one of the gate_subject_* strings. -->
+    <string name="gate_blocked_adjustable">%1$s looks too explicit for the current sensitivity. You can raise the sensitivity setting, but the mandatory checks always apply.</string>
+
+    <!-- ==================================================== protection control
+         The sensitivity dial. One continuous knob, 0..100, with both ends labelled,
+         because "which end is safer" is the first question anybody has about a slider
+         like this and an unlabelled slider makes them guess. -->
+    <string name="guard_title">Protection sensitivity</string>
+    <string name="guard_summary">How strictly the content check refuses material it is unsure about.</string>
+    <!-- %1$d is the current value, 0..100 -->
+    <string name="guard_value">%1$d</string>
+    <!-- The two endpoints. ⚠ "Least" and "Most" must not be swapped in a translation:
+         the left label is the LOW end and the right label is the HIGH end, and the
+         order of the two texts is checked by a test. -->
+    <string name="guard_end_low">Least sensitive</string>
+    <string name="guard_end_high">Most sensitive</string>
+    <!-- The slider's accessibility label, read by TalkBack. -->
+    <string name="guard_slider_cd">Protection sensitivity, %1$d out of 100</string>
+    <!-- Explains what the dial does and, just as importantly, what it does NOT do. -->
+    <string name="guard_note">This raises or lowers one threshold: how high the content score has to be before the check refuses the material. It never switches the check off, never weakens the mandatory rules, and never overrides the consent you gave.</string>
+    <string name="guard_note_adjustable">Adjustable: the content-score threshold, and how much of a video counts as too much flagged.</string>
+    <string name="guard_note_mandatory">Not adjustable: the content check itself, the rule that a failed check refuses the material, the video flagged-rate allowance, the consent acknowledgement, and every prohibited-use rule.</string>
+
+    <!-- ==================================================== NSFW mode
+         A PERMISSION, not a sensitivity. Two states, and the difference between
+         them is the score threshold the content gate judges against. ⚠ It does
+         NOT switch the content check off, and it does not touch any of the
+         mandatory rules. -->
+    <string name="nsfw_mode_title">NSFW Mode</string>
+    <string name="nsfw_mode_summary">Whether the app may process adult content that is yours to process.</string>
+    <string name="nsfw_mode_off">Off</string>
+    <string name="nsfw_mode_on">On</string>
+    <!-- The switch's accessibility label. %1$s is "On" or "Off". -->
+    <string name="nsfw_mode_cd">NSFW Mode, %1$s</string>
+    <!-- What each state actually does. ⚠ The OFF text must not read as a refusal
+         and the ON text must not read as a permission slip. -->
+    <string name="nsfw_mode_off_note">The content check refuses anything it flags. The sensitivity slider only makes it stricter.</string>
+    <string name="nsfw_mode_on_note">The content check still runs on every path and still refuses anything it is confident is explicit. It refuses less of what the model is only unsure about, so adult material that is yours to process is not turned away.</string>
+    <!-- Shown under the switch, in both states. ⚠ This is the line that has to be
+         there: ON is a decision the user makes about their own material, and the
+         app is not allowed to imply that ON makes anything prohibited acceptable. -->
+    <string name="nsfw_mode_rules">ON does not switch the check off, does not let a failed check pass, and does not change the consent rules, the rules about real people, or the rules about children. Using it on material you do not have the right to process is not permitted, and you are responsible for that.</string>
+    <string name="nsfw_mode_responsibility">You are responsible for having the right to process the material, and for the law where you are.</string>
+    <string name="nsfw_mode_threshold">Threshold in force: %1$s</string>
+    <string name="guard_threshold_now">Current threshold: %1$s</string>
+    <!-- Shown in Settings, next to the slider, so the number behind the dial is visible. -->
+    <string name="guard_reset">Reset to the default</string>
+    <string name="guard_reset_done">Sensitivity reset to the default</string>
+
+    <!-- ==================================================== safety notice
+         The responsible-use notice, shown on first launch and in Settings. The
+         acknowledgment is mandatory and one-way: there is no control anywhere that
+         un-accepts it, because a checkbox that can be unchecked is a checkbox nobody
+         reads. -->
+    <string name="safety_title">Use responsibly</string>
+    <string name="safety_body">Face manipulation must respect consent, privacy and the law.\n\n• Use only your own media, or media you have explicit permission to edit.\n• Do not create, request, share or publish intimate or sexual imagery of a real person without that person\'s explicit consent.\n• Do not use edited media to impersonate, harass, defraud, threaten or mislead anyone.\n• Obey local law and the licences of the app and its models.\n• You are responsible for how you use this app. This notice does not remove any legal obligation, and it does not make prohibited use acceptable.</string>
+    <string name="safety_agree">I agree and continue</string>
+    <string name="safety_exit">Exit</string>
+    <string name="safety_acknowledged">Accepted on %1$s</string>
+    <string name="safety_acknowledged_never">Not accepted yet</string>
+    <string name="safety_mandatory_note">This notice cannot be turned off inside the app. It is a condition of using it.</string>
+    <string name="safety_privacy_body">Processing happens on this device. Your photos and videos are never uploaded. Model files are downloaded separately, and the app asks before it downloads over a metered connection.</string>
+
+    <!-- ==================================================== false-rejection diagnostics
+         The investigation path for a legitimate request that was refused. The point is
+         that a false positive can be EVIDENCED and CALIBRATED, not argued with. -->
+    <string name="guard_diag_title">Refusal history</string>
+    <string name="guard_diag_summary">%1$s</string>
+    <string name="guard_diag_empty">No refusals recorded.</string>
+    <string name="guard_diag_clear">Clear the history</string>
+    <string name="guard_diag_cleared">Refusal history cleared</string>
+    <string name="guard_diag_share">Share the history</string>
+    <string name="guard_diag_body">The app records which rule refused a request and what the numbers were, so that a false positive can be investigated and corrected. It records rule identifiers, scores and thresholds only — never your images, videos, file names or biometric data.</string>
+    <string name="guard_diag_row">%1$s · %2$s</string>
 
 
     <!-- ==================== Live ====================
@@ -535,6 +613,9 @@ Turning it off runs your own Swap settings instead. This is experimental: the en
     <string name="set_tab_device">Device</string>
     <string name="set_tab_api">API</string>
     <string name="set_tab_about">About</string>
+    <!-- The protection tab: the sensitivity dial, the responsible-use notice and the
+         refusal history, together. -->
+    <string name="set_tab_protection">Protection</string>
     <string name="set_theme_title">Theme</string>
     <string name="set_theme_dark">Dark mode</string>
     <string name="set_theme_follow_system">Following system</string>
@@ -638,4 +719,11 @@ Turning it off runs your own Swap settings instead. This is experimental: the en
     <string name="status_cannot_read_driver">Cannot read the driver: %1$s</string>
     <string name="status_running">Running…</string>
     <string name="gate_subject_driver_video">the driver video</string>
+
+    <!-- ==================================================== MMA Face additions -->
+    <string name="mma_model_repair">Repair</string>
+    <string name="mma_model_all_ok">All models are present and intact.</string>
+    <string name="mma_model_missing_summary">%1$d file(s) missing or corrupt — tap Repair.</string>
+    <string name="mma_fix_dialog_title">Repair models</string>
+    <string name="mma_fix_dialog_body">Missing or corrupt files will be re-downloaded. Healthy files are left untouched. This does not delete any of your settings.</string>
 </resources>

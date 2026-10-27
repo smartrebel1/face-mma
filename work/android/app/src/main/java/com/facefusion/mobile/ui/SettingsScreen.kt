@@ -19,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.facefusion.mobile.ApiService
+import com.facefusion.mobile.GuardProfile
+import com.facefusion.mobile.NsfwMode
 import com.facefusion.mobile.ModelDownload
 import androidx.compose.ui.res.stringResource
 import com.facefusion.mobile.R
@@ -130,6 +132,19 @@ data class DeviceUi(
 
 private fun mb(bytes: Long) = "%.1f MB".format(bytes / 1048576.0)
 
+/**
+ * The sub-tab indices.
+ *
+ * ⚠ Named, because "the About tab is 3" was already wrong once: inserting the
+ * Protection tab before About moved About to 4, and a literal 3 in two places
+ * would have silently turned the bug-report card into part of the Protection tab.
+ */
+private const val MODELS_TAB = 0
+private const val DEVICE_TAB = 1
+private const val API_TAB = 2
+private const val PROTECTION_TAB = 3
+private const val ABOUT_TAB = 4
+
 @Composable
 fun SettingsScreen(
     sections: List<ModelSection>,
@@ -184,6 +199,32 @@ fun SettingsScreen(
     /** Where models download from: [ModelDownload.SOURCE_HF] or [ModelDownload.SOURCE_MIRROR]. */
     downloadSource: String = ModelDownload.SOURCE_HF,
     onDownloadSource: (String) -> Unit = {},
+    /**
+     * The protection profile in force.
+     *
+     * ⚠ The WHOLE profile, not a float: the caller has to persist it AND push it into
+     * the gate, and a bare number makes it too easy to do one without the other -- which
+     * is how a slider ends up drawing a value the gate is not using.
+     */
+    guardProfile: GuardProfile = GuardProfile.DEFAULT,
+    /** Apply a new protection profile. */
+    onGuardProfileChange: (GuardProfile) -> Unit = {},
+    /**
+     * Whether adult content is permitted.
+     *
+     * ⚠ The mode travels inside the profile as well -- it is persisted with it --
+     * but it is passed separately because it is a PERMISSION rather than a number,
+     * and the UI draws it as a switch rather than as a dial.
+     */
+    nsfwMode: NsfwMode = NsfwMode.OFF,
+    /** Put the sensitivity back to its default. */
+    onGuardReset: () -> Unit = {},
+    /** When the responsible-use notice was accepted, or 0 if it never was. */
+    safetyAcknowledgedAt: Long = 0L,
+    /** The refusal-history summary, already rendered as text. */
+    guardDiagSummary: String = "",
+    /** Delete the refusal history. */
+    onGuardDiagClear: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var confirming by remember { mutableStateOf<ModelRow?>(null) }
@@ -200,7 +241,8 @@ fun SettingsScreen(
     Column(modifier.fillMaxSize()) {
     TabRow(selectedTabIndex = tab) {
         listOf(R.string.set_tab_models, R.string.set_tab_device,
-               R.string.set_tab_api, R.string.set_tab_about).forEachIndexed { i, res ->
+               R.string.set_tab_api, R.string.set_tab_protection,
+               R.string.set_tab_about).forEachIndexed { i, res ->
             Tab(selected = tab == i, onClick = { tab = i },
                 text = { Text(stringResource(res)) })
         }
@@ -222,7 +264,7 @@ fun SettingsScreen(
                     onDragEnd = {
                         val step = if (tabDrag < -70f) 1 else if (tabDrag > 70f) -1 else 0
                         tabDrag = 0f
-                        if (step != 0) tab = (tab + step).coerceIn(0, 3)
+                        if (step != 0) tab = (tab + step).coerceIn(0, ABOUT_TAB)
                     },
                     onDragCancel = { tabDrag = 0f },
                 ) { change, amount -> tabDrag += amount; change.consume() }
@@ -234,7 +276,96 @@ fun SettingsScreen(
             .padding(start = 16.dp, end = 16.dp, top = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (tab == 0) {
+        if (tab == PROTECTION_TAB) {
+        // ---------------------------------------------------------------- protection
+        //
+        // The sensitivity dial, the responsible-use notice, and the refusal history.
+        //
+        // ⚠ These three live together on purpose. The dial is what the user adjusts;
+        // the notice is what the user accepted and cannot un-accept; and the history
+        // is what turns "the app blocked me" into a calibration. Putting them apart
+        // would make the adjustable thing look like just one of three unrelated
+        // settings, and the mandatory thing would look like a preference.
+        ProtectionControl(
+            profile = guardProfile,
+            onProfileChange = onGuardProfileChange,
+            showReset = true,
+            onReset = onGuardReset,
+        )
+        Spacer(Modifier.height(6.dp))
+
+        // ------------------------------------------------- NSFW mode
+        //
+        // ⚠ Next to the dial, and the rules are printed under it in BOTH states.
+        // The switch is a permission, and a permission without the rules beside it
+        // reads as a licence the app does not have the power to give.
+        NsfwModeControl(
+            mode = nsfwMode,
+            onModeChange = { mode -> onGuardProfileChange(guardProfile.copy(nsfwMode = mode)) },
+            sensitivity = guardProfile.sensitivity,
+        )
+        Spacer(Modifier.height(6.dp))
+
+        // ------------------------------------------------- responsible-use notice
+        Caption(stringResource(R.string.safety_title))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.safety_body),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    stringResource(R.string.safety_privacy_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    // When it was accepted, or that it never was. The notice is
+                    // accepted once and cannot be un-accepted, so this is a fact
+                    // about the past, not a control.
+                    if (safetyAcknowledgedAt > 0)
+                        stringResource(R.string.safety_acknowledged,
+                                       java.text.DateFormat.getDateTimeInstance(
+                                           java.text.DateFormat.SHORT,
+                                           java.text.DateFormat.SHORT).format(
+                                               java.util.Date(safetyAcknowledgedAt)))
+                    else stringResource(R.string.safety_acknowledged_never),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.safety_mandatory_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // ------------------------------------------------- refusal history
+        Caption(stringResource(R.string.guard_diag_title))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.guard_diag_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    if (guardDiagSummary.isBlank())
+                        stringResource(R.string.guard_diag_empty)
+                    else stringResource(R.string.guard_diag_summary, guardDiagSummary),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                )
+                OutlinedButton(onGuardDiagClear, Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.guard_diag_clear))
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        }
+        if (tab == MODELS_TAB) {
         // ---------------------------------------------------------------- models
         //
         // One block per model SET, not one list. A device that has run both runtimes
@@ -368,7 +499,7 @@ fun SettingsScreen(
         Spacer(Modifier.height(6.dp))
 
 
-        if (tab == 1) {
+        if (tab == DEVICE_TAB) {
         // ---------------------------------------------------------------- theme
         //
         // A manual light/dark override, after the model inventory it shares the tab with.
@@ -594,7 +725,7 @@ fun SettingsScreen(
         }
 
         }
-        if (tab == 2) {
+        if (tab == API_TAB) {
         // ---------------------------------------------------------------- remote API
         //
         // Reads ApiService's state directly, the way the download overlay reads
@@ -668,7 +799,7 @@ fun SettingsScreen(
         }
 
         }
-        if (tab == 1) {
+        if (tab == DEVICE_TAB) {
         Caption(stringResource(R.string.set_supported_devices))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(vertical = 4.dp)) {
@@ -723,7 +854,7 @@ fun SettingsScreen(
         //
         // Reported by a user who went looking for it exactly where the documentation said.
         }
-        if (tab == 3) {
+        if (tab == ABOUT_TAB) {
         Caption(stringResource(R.string.set_bug_report))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

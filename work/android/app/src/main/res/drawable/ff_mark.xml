@@ -1,0 +1,30 @@
+<!--
+  MMA Face header mark — a smaller version of the launcher's two-face logo,
+  white-on-transparent so it sits on the app bar's dark background without
+  the launcher's dark plate.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Back face (left) -->
+    <path android:fillColor="#B0B0B0"
+        android:pathData="M8.5,6
+            C6.6,6 5,7.6 5,9.5
+            C5,11.5 6.4,13 8.5,13
+            C10.6,13 12,11.5 12,9.5
+            C12,7.6 10.4,6 8.5,6 Z"/>
+    <path android:fillColor="#000000" android:pathData="M7.2,9 h0.8 v0.7 h-0.8 Z"/>
+    <path android:fillColor="#000000" android:pathData="M9.0,9 h0.8 v0.7 h-0.8 Z"/>
+    <path android:fillColor="#000000" android:pathData="M7.6,11 Q8.5,11.5 9.4,11"/>
+    <!-- Front face (right) -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M15.5,5
+            C13.6,5 12,6.6 12,8.5
+            C12,10.5 13.4,12 15.5,12
+            C17.6,12 19,10.5 19,8.5
+            C19,6.6 17.4,5 15.5,5 Z"/>
+    <path android:fillColor="#1E293B" android:pathData="M14.2,8 h0.9 v0.8 h-0.9 Z"/>
+    <path android:fillColor="#1E293B" android:pathData="M16.0,8 h0.9 v0.8 h-0.9 Z"/>
+    <path android:fillColor="#EF4444"
+        android:pathData="M14.5,10.2 Q15.5,11.0 16.5,10.2"/>
+</vector>

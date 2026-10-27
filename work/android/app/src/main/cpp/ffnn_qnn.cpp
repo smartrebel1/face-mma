@@ -41,9 +41,30 @@ bool qnnInit(const InitSpec& spec) {
     g_err = std::string("qnn init: ") + ffqnn::lastError();
     return false;
   }
-  g_chain = ffqnn::tierChain(ffqnn::deviceInfo());
+  ffqnn::DeviceInfo d = ffqnn::deviceInfo();
+  // ⚠ Only claim QNN is usable when a real on-chip Hexagon HTP was enumerated.
+  // On non-Qualcomm SoCs (MediaTek, Exynos, UNISOC, Kirin) libQnnHtp.so may still
+  // dlopen from a stub/vendor shim that exposes the API symbols but has no DSP
+  // to talk to. Without this check, tierChain() falls back to {"v68"}, which
+  // makes the Kotlin downloader fetch QNN v68 models that can never execute --
+  // then at run-swap time the real context load fails, the Auto pipeline falls
+  // through to ncnn, and ncnn files were never downloaded. The user sees
+  // "ncnn model files not found" even though they tapped Download models.
+  // Requiring d.ok here makes probeBackend answer "ncnn" on those chips so the
+  // downloader fetches the right model set the first time.
+  if (!d.ok) {
+    g_err = std::string("qnn init: no on-chip Hexagon HTP found (") + ffqnn::lastError() + ")";
+    ffqnn::reset();
+    return false;
+  }
+  g_chain = ffqnn::tierChain(d);
   g_tier = g_chain.empty() ? std::string() : g_chain.front();
-  return !g_tier.empty();
+  if (g_tier.empty()) {
+    g_err = "qnn init: empty tier chain";
+    ffqnn::reset();
+    return false;
+  }
+  return true;
 }
 
 // The tier a caller has settled on. `ffpipe` walks the chain itself -- it is the only place

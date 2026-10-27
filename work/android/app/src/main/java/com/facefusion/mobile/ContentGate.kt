@@ -24,29 +24,146 @@ import java.io.File
  * the graph did not run, and every verdict below treats NaN as [Verdict.ERROR], never as
  * "allow". A blocking gate that opens when it breaks is worse than no gate, because
  * everything upstream of it believes the content was checked.
+ *
+ * ## Where the user's protection setting lives
+ *
+ * The threshold this gate judges against comes from [GuardProfile], which the user
+ * controls through the sensitivity slider. The profile is held here, in one place, so
+ * that every path -- still, clip, preview, live camera, batch and the remote API --
+ * reads the SAME value at the SAME time, and so that changing it takes effect on the
+ * next request without a restart.
+ *
+ * ⚠ [activeProfile] is the single source of truth, and it is **not** the same thing as
+ * the profile the UI is drawing. The UI reads the profile the user is choosing; this
+ * holds the one that is in force. They are the same object, copied on change.
  */
 object ContentGate {
 
-    /** Upstream baseline. The protection control may only tighten this threshold. */
-    const val THRESHOLD = 0.25f
+    /**
+     * Upstream baseline. The protection control may only tighten this threshold.
+     *
+     * ⚠ Defined as [GuardProfile.BASE_THRESHOLD] rather than as a literal, so the
+     * gate and the policy cannot drift apart about what "upstream's value" means.
+     */
+    const val THRESHOLD = GuardProfile.BASE_THRESHOLD
 
-    /** Current threshold, volatile because UI and API requests can read it on different threads. */
+    /**
+     * The profile in force.
+     *
+     * ⚠ Volatile because UI and API requests read it on different threads, and a
+     * change has to be visible to the NEXT request rather than to the next frame of
+     * whatever thread happened to set it. The whole object is replaced, never
+     * mutated, so a reader either sees the old profile or the new one -- never a
+     * half-updated one.
+     */
     @Volatile
-    private var activeThreshold: Float = THRESHOLD
+    private var activeProfile: GuardProfile = GuardProfile.DEFAULT
 
-    /** 0..100; higher means more protection. Never loosens the original 0.25 gate. */
-    fun setProtectionLevel(level: Float) {
-        val clamped = level.coerceIn(0f, 100f)
-        activeThreshold = THRESHOLD - (clamped / 100f) * 0.05f
+    /**
+     * The profile in force.
+     *
+     * The ONE place a caller gets the live configuration from.
+     */
+    fun profile(): GuardProfile = activeProfile
+
+    /**
+     * Apply a new profile.
+     *
+     * Takes effect on the **next** decision: a request already being judged finishes
+     * with the threshold it started with, because changing a cut point halfway
+     * through evaluating a score would make the outcome depend on timing.
+     *
+     * ⚠ The threshold is ALSO pushed to the native pipeline. The native side keeps
+     * its own copy (`ffpipe::Config::nsfwThreshold`) and uses it to decide whether
+     * the pipeline has been cleared, which is the invariant that lets the
+     * frame-changing stages run at all. Without this push the native floor stayed
+     * at 0.25 and the sensitivity slider could only ever TIGHTEN the gate.
+     */
+    fun applyProfile(profile: GuardProfile) {
+        val safe = GuardProfileStore.sanitize(
+            profile.sensitivity, profile.policyRevision, profile.nsfwMode)
+        activeProfile = safe
+        pushNativeThreshold(safe)
     }
 
-    fun protectionThreshold(): Float = activeThreshold
+    /**
+     * Push the threshold in force to the native pipeline.
+     *
+     * ⚠ Safe when nothing is loaded: the native side stores the value and applies
+     * it to the next pipeline, so the order of this call and init does not matter.
+     */
+    private fun pushNativeThreshold(profile: GuardProfile) {
+        val t = GuardProfile.thresholdFor(profile.sensitivity, profile.nsfwMode)
+        try {
+            NativePipe.setNsfwThreshold(t)
+        } catch (e: UnsatisfiedLinkError) {
+            // The native library is not loaded (the dev build, or a unit test).
+            // The Kotlin policy still stands on its own; only the native FLOOR is
+            // missing, and the native floor is only consulted by the pipeline.
+        }
+    }
 
-    /** content_analyser.py:analyse_video -- refuse the video above this percentage. */
-    const val VIDEO_RATE_PERCENT = 10.0
+    /**
+     * The Activity, for the diagnostics log.
+     *
+     * ⚠ Held as a WEAK reference and set once, because the gate is an object and an
+     * object outliving the Activity would leak it. The alternative -- passing a
+     * Context into every inspect call -- would have meant threading it through six
+     * call sites for the sake of a log line, and the six call sites are exactly the
+     * ones that would have been forgotten.
+     *
+     * ⚠ A null context is not an error. The diagnostics log is a convenience; a gate
+     * that cannot record a refusal still refuses it.
+     */
+    private var diagContext: java.lang.ref.WeakReference<Context>? = null
 
-    /** content_analyser.py:analyse_video -- one sample per second of footage. */
-    private const val SAMPLE_INTERVAL_US = 1_000_000L
+    /** Give the gate a Context so it can write the refusal history. */
+    fun attachContext(context: Context) {
+        diagContext = java.lang.ref.WeakReference(context.getApplicationContext())
+    }
+
+    /**
+     * Record a refusal in the diagnostics history.
+     *
+     * Called from [judge], which is the ONE place a score becomes a decision, so the
+     * history covers every path -- still, clip, preview, live camera, batch and the
+     * remote API -- without any of them having to remember to.
+     */
+    private fun recordRefusal(decision: ProtectionDecision, subject: Int) {
+        val ctx = diagContext?.get() ?: return
+        try {
+            ProtectionDiagnostics.record(ctx, decision, subject)
+        } catch (e: Exception) {
+            // A diagnostics log that cannot be written is not a reason to change a
+            // decision. The gate's answer stands on its own.
+        }
+    }
+
+    /**
+     * The threshold currently in force.
+     *
+     * ⚠ This is the value every path judges against. It is derived from the profile,
+     * never set independently, so the slider and the gate cannot disagree.
+     */
+    fun protectionThreshold(): Float =
+        GuardProfile.thresholdFor(activeProfile.sensitivity, activeProfile.nsfwMode)
+
+    /**
+     * content_analyser.py:analyse_video -- refuse the video above this percentage.
+     *
+     * ⚠ Defined as [GuardProfile.VIDEO_RATE_PERCENT] rather than as a literal, so
+     * the gate and the policy cannot drift apart about what the allowance is.
+     */
+    const val VIDEO_RATE_PERCENT = GuardProfile.VIDEO_RATE_PERCENT
+
+    /**
+     * content_analyser.py:analyse_video -- one sample per second of footage.
+     *
+     * ⚠ Public because it is a CONTRACT, not an implementation detail: the live
+     * camera promises the same one-check-per-second rate, and a test pins both to
+     * the same number.
+     */
+    const val SAMPLE_INTERVAL_US = 1_000_000L
 
     /**
      * How far the W8A16 gate's score sits from the fp32 one, measured over 16 held-out
@@ -68,6 +185,15 @@ object ContentGate {
         val sampled: Int = 1,
         val flagged: Int = 0,
         val detail: String = "",
+        /**
+         * The policy's decision, when this result came through the policy layer.
+         *
+         * ⚠ Present so that a refusal can name the RULE that produced it, not only
+         * say "blocked". A caller that only has a Verdict cannot distinguish "the
+         * score was too high" from "the check could not run" -- and those two need
+         * different answers from the user.
+         */
+        val decision: ProtectionDecision? = null,
     ) {
         val refused get() = verdict == Verdict.BLOCK
 
@@ -77,31 +203,94 @@ object ContentGate {
          * question and no caller re-derives it from [verdict].
          */
         val permitted get() = verdict == Verdict.ALLOW
+
+        /** The rule identifier that produced this result, when there is one. */
+        val ruleId: String get() = decision?.ruleId ?: ""
+
+        /**
+         * Whether the user could have changed this outcome with the sensitivity dial.
+         *
+         * `false` for a mandatory safeguard. Used by the UI to say, honestly, whether
+         * a refusal was something the slider could have avoided.
+         */
+        val adjustable: Boolean get() = decision?.adjustable ?: false
     }
 
-    private fun judge(score: Float): Verdict = when {
-        score.isNaN() -> Verdict.ERROR
-        score > activeThreshold -> Verdict.BLOCK
-        else -> Verdict.ALLOW
+    /**
+     * Turn a raw score into a verdict, through the policy.
+     *
+     * ⚠ The policy is the ONLY place a score becomes a decision. Both the still path
+     * and both video paths go through here, so they cannot drift apart on how NaN is
+     * treated or on where the threshold comes from.
+     *
+     * @param subject the `R.string.gate_subject_*` resource the request is about.
+     * @param sampled videos only: how many samples were taken.
+     * @param flagged videos only: how many of them tripped the gate.
+     * @param detail a technical note about a fault. Never user-facing.
+     * @param consent whether the responsible-use notice has been accepted.
+     */
+    private fun judge(
+        score: Float,
+        subject: Int = R.string.gate_subject_this_frame,
+        sampled: Int = 1,
+        flagged: Int = 0,
+        detail: String = "",
+        consent: Boolean = true,
+    ): Result {
+        val decision = DefaultProtectionPolicy.evaluate(
+            ProtectionRequest(
+                subject = subject,
+                score = score,
+                sampled = sampled,
+                flagged = flagged,
+                detail = detail,
+                consentAcknowledged = consent,
+            ),
+            activeProfile,
+        )
+        val verdict = when {
+            decision.permitted -> Verdict.ALLOW
+            decision.reason == ProtectionReason.CHECK_UNAVAILABLE -> Verdict.ERROR
+            decision.reason == ProtectionReason.CONSENT_NOT_ACKNOWLEDGED -> Verdict.ERROR
+            else -> Verdict.BLOCK
+        }
+        // ⚠ A refusal is recorded HERE, in the one place a score becomes a decision,
+        // so the history covers every path -- still, clip, preview, live camera, batch
+        // and the remote API -- without each of them having to remember to.
+        //
+        // ⚠ An ERROR is recorded too. A check that could not run is a refusal as far
+        // as the user is concerned, and it is the case most worth investigating.
+        if (!decision.permitted) recordRefusal(decision, subject)
+        return Result(verdict, score, sampled, flagged, detail, decision)
     }
 
     /** `analyse_image`: one check on a still. */
     /**
      * One BGR frame to a verdict. The single place a score becomes a decision, so both the
      * still path and both video paths cannot drift apart on how NaN is treated.
+     *
+     * @param subject which thing is being checked, for the refusal message and for
+     *   the diagnostics record.
      */
-    private fun inspectPixels(bgr: ByteArray, w: Int, h: Int): Result {
+    private fun inspectPixels(bgr: ByteArray, w: Int, h: Int, subject: Int): Result {
         val score = NativePipe.contentScore(bgr, w, h)
-        return Result(judge(score), score,
-                      detail = if (score.isNaN()) NativePipe.lastError() else "")
+        val detail = if (score.isNaN()) NativePipe.lastError() else ""
+        return judge(score, subject, 1, 0, detail)
     }
 
-    fun inspectStill(bitmap: Bitmap): Result {
+    /**
+     * One still, checked.
+     *
+     * @param subject which thing is being checked -- one of the
+     *   `R.string.gate_subject_*` resources.
+     */
+    fun inspectStill(bitmap: Bitmap, subject: Int = R.string.gate_subject_this_frame): Result {
         val soft = bitmap.asArgb8888()
             ?: return Result(Verdict.ERROR, Float.NaN, detail = "cannot read image")
         val px = IntArray(soft.width * soft.height)
         soft.getPixels(px, 0, soft.width, 0, 0, soft.width, soft.height)
-        return inspectPixels(NativePipe.argbToBgr(px, soft.width, soft.height), soft.width, soft.height)
+        return inspectPixels(
+            NativePipe.argbToBgr(px, soft.width, soft.height), soft.width, soft.height, subject)
     }
 
     /**
@@ -125,15 +314,18 @@ object ContentGate {
      * swapper could process. Fail-closed, so never a way through the gate, but a way to be
      * told no about a good file.
      */
-    fun inspectClip(file: File): Result =
-        sampleByRetriever(file) ?: sampleByDecoder(file)
+    fun inspectClip(
+        file: File,
+        subject: Int = R.string.gate_subject_target_video,
+    ): Result =
+        sampleByRetriever(file, subject) ?: sampleByDecoder(file, subject)
 
     /**
      * @return null when the retriever produced no frames at all, meaning "ask the decoder".
      *         A graph failure is NOT null -- a broken gate is broken in either sampler, and
      *         retrying it would only turn one honest ERROR into two.
      */
-    private fun sampleByRetriever(file: File): Result? {
+    private fun sampleByRetriever(file: File, subject: Int): Result? {
         val r = MediaMetadataRetriever()
         try {
             r.setDataSource(file.absolutePath)
@@ -150,7 +342,7 @@ object ContentGate {
                 val frame = r.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                     ?: r.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)
                 if (frame != null) {
-                    val res = inspectStill(frame)
+                    val res = inspectStill(frame, subject)
                     if (res.verdict == Verdict.ERROR) return res
                     sampled++
                     if (res.refused) flagged++
@@ -158,7 +350,7 @@ object ContentGate {
                 }
                 us += SAMPLE_INTERVAL_US
             }
-            return if (sampled == 0) null else verdictOf(sampled, flagged, worst)
+            return if (sampled == 0) null else verdictOf(sampled, flagged, worst, subject)
         } catch (e: Exception) {
             return null
         } finally {
@@ -167,7 +359,7 @@ object ContentGate {
     }
 
     /** The fallback: the same MediaExtractor + MediaCodec path the swap itself decodes with. */
-    private fun sampleByDecoder(file: File): Result {
+    private fun sampleByDecoder(file: File, subject: Int): Result {
         var sampled = 0
         var flagged = 0
         var worst = Float.NEGATIVE_INFINITY
@@ -175,7 +367,7 @@ object ContentGate {
 
         val taken = VideoFrames.sample(file.absolutePath, SAMPLE_INTERVAL_US) { bgr, w, h ->
             if (graphError == null) {
-                val res = inspectPixels(bgr, w, h)
+                val res = inspectPixels(bgr, w, h, subject)
                 if (res.verdict == Verdict.ERROR) {
                     graphError = res
                 } else {
@@ -188,15 +380,40 @@ object ContentGate {
         graphError?.let { return it }
         if (taken == 0 || sampled == 0)
             return Result(Verdict.ERROR, Float.NaN, detail = "no frames could be read")
-        return verdictOf(sampled, flagged, worst)
+        return verdictOf(sampled, flagged, worst, subject)
     }
 
-    private fun verdictOf(sampled: Int, flagged: Int, worst: Float): Result {
+    /**
+     * The video rule, through the policy.
+     *
+     * ⚠ The RATE is what upstream's `analyse_video` refuses on, not the worst score.
+     * A clip with one bad second in fifty is allowed; a clip that is bad throughout is
+     * not. The score threshold still applies to the worst sample -- that is the
+     * adjustable part -- but the clip is refused on the RATE, and the rate is
+     * mandatory.
+     */
+    private fun verdictOf(sampled: Int, flagged: Int, worst: Float, subject: Int): Result {
         val rate = 100.0 * flagged / sampled
+        // The per-sample threshold decides which samples COUNT as flagged, so the
+        // flagged COUNT already depends on the sensitivity. The RATE allowance does not.
+        val decision = DefaultProtectionPolicy.evaluate(
+            ProtectionRequest(
+                subject = subject,
+                score = worst,
+                sampled = sampled,
+                flagged = flagged,
+            ),
+            activeProfile,
+        )
+        val verdict = when {
+            decision.permitted -> Verdict.ALLOW
+            decision.reason == ProtectionReason.CHECK_UNAVAILABLE -> Verdict.ERROR
+            else -> Verdict.BLOCK
+        }
         return Result(
-            if (rate > VIDEO_RATE_PERCENT) Verdict.BLOCK else Verdict.ALLOW,
-            worst, sampled, flagged,
+            verdict, worst, sampled, flagged,
             "%d/%d flagged (%.1f%%)".format(flagged, sampled, rate),
+            decision,
         )
     }
 
@@ -222,7 +439,7 @@ object ContentGate {
      * broke.
      */
     fun message(ctx: Context, what: Int, res: Result): String = when (res.verdict) {
-        Verdict.BLOCK -> ctx.getString(R.string.gate_blocked, ctx.getString(what))
+        Verdict.BLOCK -> blockedSentence(ctx, what, res)
         Verdict.ERROR -> ctx.getString(R.string.gate_error, ctx.getString(what)).let {
             if (res.detail.isNotBlank())
                 // The detail is a native error string. It stays as it came: it is for the
@@ -234,6 +451,23 @@ object ContentGate {
     }
 
     /**
+     * The sentence for a refusal, with the mandatory/adjustable distinction in it.
+     *
+     * ⚠ The two sentences must stay distinguishable in every language. A refusal the
+     * user could have avoided by moving the slider is a DIFFERENT situation from one
+     * the slider could never have avoided, and the whole point of the distinction is
+     * that the user is told which they are looking at. A translation that collapses
+     * them into one sentence destroys the feature.
+     */
+    private fun blockedSentence(ctx: Context, what: Int, res: Result): String {
+        val subject = ctx.getString(what)
+        return if (res.adjustable)
+            ctx.getString(R.string.gate_blocked_adjustable, subject)
+        else
+            ctx.getString(R.string.gate_blocked, subject)
+    }
+
+    /**
      * The English sentence, for the HTTP API.
      *
      * `ApiServer` answers a machine. A script that matches on an error must not have it
@@ -242,7 +476,7 @@ object ContentGate {
      * strings.xml, rather than a second hardcoded set that can drift from it.
      */
     fun messageEnglish(ctx: Context, what: Int, res: Result): String {
-        val cfg = android.content.res.Configuration(ctx.resources.configuration)
+        val cfg = android.content.res.Configuration(ctx.getResources().configuration)
         cfg.setLocale(java.util.Locale.ENGLISH)
         return message(ctx.createConfigurationContext(cfg), what, res)
     }
@@ -252,6 +486,10 @@ object ContentGate {
      *
      * Thrown so the UI can present it as the finished, user-facing sentence it already is,
      * rather than prefixing it with "Failed:" the way a genuine error deserves.
+     *
+     * @param decision the policy's decision, when there was one. Carried so that the
+     *   catch site can write a diagnostics record -- the rule identifier and the
+     *   reason -- without having to re-derive them from the message.
      */
-    class Refused(message: String) : Exception(message)
+    class Refused(message: String, val decision: ProtectionDecision? = null) : Exception(message)
 }

@@ -48,6 +48,8 @@ import com.facefusion.mobile.FaceMaskerCard
 import com.facefusion.mobile.FaceSwapperCard
 import com.facefusion.mobile.BatchItem
 import com.facefusion.mobile.BatchState
+import com.facefusion.mobile.GuardProfile
+import com.facefusion.mobile.NsfwMode
 import com.facefusion.mobile.ModelDownload
 import com.facefusion.mobile.OptionSegments
 import com.facefusion.mobile.OptionSlider
@@ -188,8 +190,28 @@ fun SwapScreen(
     log: String,
     opts: SwapOptions,
     onOptsChange: (SwapOptions) -> Unit,
-    protectionLevel: Float = 100f,
-    onProtectionLevelChange: (Float) -> Unit = {},
+    /**
+     * The protection profile in force.
+     *
+     * ⚠ A WHOLE profile, not a float. The slider changes more than a number -- it
+     * changes the threshold the gate judges against, and the caller has to persist
+     * it and push it into [com.facefusion.mobile.ContentGate] as well as draw it.
+     * Passing a bare float made it too easy to draw a value that was not the one in
+     * force, which is the exact bug this control must not have.
+     */
+    guardProfile: GuardProfile = GuardProfile.DEFAULT,
+    /** Apply a new profile. Persist it, push it into the gate, and redraw. */
+    onGuardProfileChange: (GuardProfile) -> Unit = {},
+    /**
+     * Whether adult content is permitted.
+     *
+     * ⚠ A separate argument rather than a field of the profile, because the mode
+     * is a PERMISSION and the slider is a number: they are different kinds of
+     * setting and the UI draws them differently. The mode still travels in the
+     * profile -- it is part of what is persisted -- so [onGuardProfileChange] is
+     * the only way to change it.
+     */
+    nsfwMode: NsfwMode = NsfwMode.OFF,
     hasHyperswap1b: Boolean = false,
     hasHyperswap1c: Boolean = false,
     hasEnhancer: Boolean,
@@ -372,33 +394,27 @@ fun SwapScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("مؤشر الحماية", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.weight(1f))
-                    Text(protectionLevel.roundToInt().toString() + "%", style = MaterialTheme.typography.labelLarge)
-                }
-                Slider(
-                    value = protectionLevel,
-                    onValueChange = onProtectionLevelChange,
-                    valueRange = 0f..100f,
-                    steps = 19,
-                )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("الحماية الأساسية", style = MaterialTheme.typography.labelSmall)
-                    Text("حماية إضافية", style = MaterialTheme.typography.labelSmall)
-                }
-                Text(
-                    "المؤشر يرفع مستوى الحماية فقط ولا يعطّل الفحص. لو زوّدت الحماية قد تزيد حالات الرفض.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        // ---------------------------------------------------------------- protection
+        //
+        // The sensitivity dial. ⚠ It used to be hardcoded Arabic inside this file,
+        // which meant the control was invisible to every other language in the app
+        // and had no way to say what it did or did not do.
+        //
+        // It lives here as well as in Settings because this is where the user is
+        // about to press Run, and a protection setting you have to go and find in
+        // another tab is a protection setting you will not think about.
+        ProtectionControl(
+            profile = guardProfile,
+            onProfileChange = onGuardProfileChange,
+        )
+        // The NSFW mode, right under the dial. ⚠ They decide the same number, so
+        // a user who has set one and cannot find the other is left guessing which
+        // is in force.
+        NsfwModeControl(
+            mode = nsfwMode,
+            onModeChange = { mode -> onGuardProfileChange(guardProfile.copy(nsfwMode = mode)) },
+            sensitivity = guardProfile.sensitivity,
+        )
 
         // ---------------------------------------------------------------- processors
         //
@@ -847,14 +863,41 @@ fun SwapScreen(
         // EVERY source, under the pane that shows the selected one. The same row Live
         // draws, from the same list: picking a face on either screen makes it available
         // on both, which is what one shared list means for the person using it.
-        if (opts.swapsFace) SourceRow(
-            thumbs = sourceThumbs,
-            active = activeSource,
-            keepOriginalBrush = keepOriginalBrush,
-            onSelect = onSelectSource,
-            onKeepOriginal = if (assignMode) onKeepOriginal else null,
-            enabled = idle,
-        )
+        if (opts.swapsFace) {
+            SourceRow(
+                thumbs = sourceThumbs,
+                active = activeSource,
+                keepOriginalBrush = keepOriginalBrush,
+                onSelect = onSelectSource,
+                onKeepOriginal = if (assignMode) onKeepOriginal else null,
+                enabled = idle,
+            )
+            // "+ Add another face" button so users who only see one source pane
+            // can discover multi-face swap. Tap it to add a second/third/Nth
+            // source face; native then auto-matches each detected target face
+            // to the closest source embedding across the whole video.
+            if (idle) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedButton(
+                        onClick = onPickSource,
+                        enabled = idle,
+                        contentPadding = ButtonDefaults.TextButtonContentPadding,
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null,
+                             modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.swap_add_another_face),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+        }
 
         // ---- ASSIGN PER PERSON. Video and stills alike: the preview pane swaps
         // through the warm pipeline either way, and native assignments live on

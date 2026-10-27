@@ -22,19 +22,35 @@ data class SwapOptions(
     /**
      * `--face-swapper-weight`, 0.0-1.0 step 0.05.
      *
-     * Blends the source and target IDENTITY embeddings, not the images. 0.5 is the source
-     * unmodified; above it the source is amplified and the target identity subtracted,
-     * which is the direction to push for a stronger resemblance.
+     * Upstream default 0.5 (kept): the source embedding as-is. We tried 0.65 to
+     * reduce "face mixing", but higher weights over-amplify identity and cause
+     * warp distortion on profile/3-4-view faces because the embedding scale
+     * feeds directly into the affine matrices. Keep it at stock.
      */
     val weight: Float = 0.5f,
 
-    /** `--face-mask-blur`, 0.0-1.0 step 0.05. How soft the swapped region's edge is. */
+    /**
+     * `--face-mask-blur`, 0.0-1.0 step 0.05.
+     *
+     * Upstream default 0.3 (kept). We tried 0.45 to soften edges, but the wider
+     * blur bleeds swapped pixels onto the hair/background on 3/4-view targets
+     * and produces the "melted face" artifact.
+     */
     val maskBlur: Float = 0.3f,
 
     /** `--face-mask-padding`, top/right/bottom/left, 0-100 percent. Shrinks the region. */
     val maskPadding: List<Int> = listOf(0, 0, 0, 0),
 
-    /** `--face-detector-score`, 0.0-1.0 step 0.05. Raise it to ignore uncertain faces. */
+    /**
+     * `--face-detector-score`, 0.0-1.0 step 0.05.
+     *
+     * Upstream default 0.5 (kept). Note: 0.65+ DOES reject walls/furniture but
+     * also REJECTS real profile/occluded faces on MediaTek, leaving the swapper
+     * with NO faces and producing a "warp the whole frame" garbage output on
+     * the one face it half-detected. Let the native YOLO-style detector decide;
+     * false door-positives on empty backgrounds are cosmetic, misshapen faces
+     * on real ones are not.
+     */
     val detectorScore: Float = 0.5f,
 
     /** `--face-landmarker-score`, 0.0-1.0 step 0.05. Below it, the 5-point set is kept. */
@@ -120,13 +136,25 @@ data class SwapOptions(
      * when the model is absent, and the UI only offers the switch when
      * [NativePipe.hasEnhancer] is true.
      */
+    /**
+     * Face Enhance OFF by default (upstream default).
+     *
+     * ⚠ v2.0 had this ON by default, but the GPEN enhancer model is ~18 MB and
+     * NOT downloaded with the required set. On first launch native was being
+     * told to run enhancer without the model, which on QNN tiers left stale
+     * pointers in the pipeline config and produced the melted/warped faces
+     * you see in the screenshots. Turning it OFF on a fresh install means the
+     * user sees a clean swap first, then opts in to enhancer once the model
+     * has actually been downloaded (at which point the UI flips the switch
+     * for them — see enableAfterDownload in MainActivity).
+     */
     val faceEnhance: Boolean = false,
 
     /**
-     * `--face-enhancer-blend`, upstream's 0-100 as a 0.0-1.0 fraction, step 0.05.
+     * `--face-enhancer-blend`, 0.0-1.0, step 0.05.
      *
-     * 1.0 is the enhancer's output alone; 0.0 leaves the swap untouched. Upstream's
-     * default is 80.
+     * Upstream default 0.8 (80% enhancer / 20% swapped). A safe sharpen when
+     * the user opts in.
      */
     val enhanceBlend: Float = 0.8f,
 
@@ -223,6 +251,7 @@ data class SwapOptions(
      */
     fun save(context: Context) {
         prefs(context).edit()
+            .putInt(K_VERSION, OPTIONS_VERSION)
             .putString(K_SWAPPER, swapper)
             .putFloat(K_WEIGHT, weight)
             .putFloat(K_BLUR, maskBlur)
@@ -247,6 +276,23 @@ data class SwapOptions(
 
     companion object {
         private const val FILE = "swap_options"
+
+        /**
+         * Settings schema version. Bump to force a reset of any persisted
+         * swap-options file that was written by an older, known-bad build.
+         *
+         *  1: upstream baseline through our 6c2141d build
+         *  2: v2.0 wrote bad defaults (weight=0.65, mask_blur=0.45, detector=0.6,
+         *     face_enhance=true) and v2.1 still had pixelBoost=2 / weight=0.55 for
+         *     some users. Those persisted values caused melted/warped faces on
+         *     MediaTek.
+         *  3: MMA v2.2 — the defaults below are known-good with the upstream
+         *     prebuilt native lib. Any pre-3 preferences file is wiped and
+         *     replaced by defaults.
+         */
+        private const val OPTIONS_VERSION = 3
+        private const val K_VERSION = "_version"
+
         private const val K_SWAPPER = "swapper"
         private const val K_WEIGHT = "weight"
         private const val K_BLUR = "mask_blur"
@@ -297,8 +343,31 @@ data class SwapOptions(
         private fun prefs(context: Context) =
             context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
+        /**
+         * Migrate old/broken persisted options: if the stored file was written by a
+         * pre-v3 build, throw it away and re-seed with defaults. This is the only
+         * safe way out of the v2.0/v2.1 state where weight/blur/detector/pixelBoost
+         * values that produce melted faces were persisted across launches.
+         */
+        private fun migrateIfNeeded(p: android.content.SharedPreferences) {
+            val v = p.getInt(K_VERSION, 1)
+            if (v >= OPTIONS_VERSION) return
+            // Wipe every known key; the next load() falls back to defaults, and the
+            // next save() writes K_VERSION back at the current version.
+            p.edit().apply {
+                remove(K_SWAPPER); remove(K_WEIGHT); remove(K_BLUR); remove(K_PADDING)
+                remove(K_DET); remove(K_LMK); remove(K_BOOST); remove(K_LARGEST)
+                remove(K_REF_DISTANCE); remove(K_BATCH_AUTOSAVE); remove(K_TRACK)
+                remove(K_ENHANCE); remove(K_ENHANCE_BLEND); remove(K_LIP_SYNC)
+                remove(K_LIP_SYNC_WEIGHT); remove(K_FACE_EDIT); remove(K_SWAP)
+                remove(K_ANIMATE); remove(K_EDITOR)
+                putInt(K_VERSION, OPTIONS_VERSION)
+            }.apply()
+        }
+
         fun load(context: Context): SwapOptions {
             val p = prefs(context)
+            migrateIfNeeded(p)
             val d = SwapOptions()
             // Each field falls back to its own default, so a partially written store or a
             // field added in a later version still loads rather than resetting everything.
@@ -311,23 +380,29 @@ data class SwapOptions(
                     ?.map { it.trim().toFloat().coerceIn(-1f, 1f) }
                     ?.takeIf { it.size == EDITOR_SLIDERS.size }
             }.getOrNull() ?: d.editor
+            // Safety clamp every scalar to sane ranges before handing back -- a corrupted
+            // preferences file could hold absurd values.
+            fun f(key: String, default: Float, lo: Float, hi: Float): Float =
+                p.getFloat(key, default).coerceIn(lo, hi)
+            fun i(key: String, default: Int, lo: Int, hi: Int): Int =
+                p.getInt(key, default).coerceIn(lo, hi)
             return SwapOptions(
                 swapper = (p.getString(K_SWAPPER, d.swapper) ?: d.swapper)
                     .let { if (it == "inswapper") "hyperswap" else it },
-                weight = p.getFloat(K_WEIGHT, d.weight),
-                maskBlur = p.getFloat(K_BLUR, d.maskBlur),
+                weight = f(K_WEIGHT, d.weight, 0f, 1f),
+                maskBlur = f(K_BLUR, d.maskBlur, 0f, 1f),
                 maskPadding = padding,
-                detectorScore = p.getFloat(K_DET, d.detectorScore),
-                landmarkerScore = p.getFloat(K_LMK, d.landmarkerScore),
-                pixelBoost = p.getInt(K_BOOST, d.pixelBoost),
+                detectorScore = f(K_DET, d.detectorScore, 0.1f, 0.95f),
+                landmarkerScore = f(K_LMK, d.landmarkerScore, 0.1f, 0.95f),
+                pixelBoost = i(K_BOOST, d.pixelBoost, 1, 4),
                 largestOnly = p.getBoolean(K_LARGEST, d.largestOnly),
-                referenceDistance = p.getFloat(K_REF_DISTANCE, d.referenceDistance),
+                referenceDistance = f(K_REF_DISTANCE, d.referenceDistance, 0.1f, 1f),
                 batchAutoSave = p.getBoolean(K_BATCH_AUTOSAVE, d.batchAutoSave),
-                trackPeriod = p.getInt(K_TRACK, d.trackPeriod),
+                trackPeriod = i(K_TRACK, d.trackPeriod, 0, 30),
                 faceEnhance = p.getBoolean(K_ENHANCE, d.faceEnhance),
-                enhanceBlend = p.getFloat(K_ENHANCE_BLEND, d.enhanceBlend),
+                enhanceBlend = f(K_ENHANCE_BLEND, d.enhanceBlend, 0f, 1f),
                 lipSync = p.getBoolean(K_LIP_SYNC, d.lipSync),
-                lipSyncWeight = p.getFloat(K_LIP_SYNC_WEIGHT, d.lipSyncWeight),
+                lipSyncWeight = f(K_LIP_SYNC_WEIGHT, d.lipSyncWeight, 0f, 1f),
                 faceEdit = p.getBoolean(K_FACE_EDIT, d.faceEdit),
                 swapEnabled = p.getBoolean(K_SWAP, d.swapEnabled),
                 faceAnimate = p.getBoolean(K_ANIMATE, d.faceAnimate),

@@ -337,6 +337,14 @@ class ApiServer(
             "holder" to PipeGuard.holder,
             "enhancer" to ModelPaths.present(ModelPaths.dir(ctx), tier, "gpen"),
             "face_editor" to ModelPaths.present(ModelPaths.dir(ctx), tier, ModelPaths.LIVEPORTRAIT),
+            // The protection profile in force. ⚠ Reported so that a script can tell
+            // what the gate is actually judging against: the API path uses the SAME
+            // profile as the app, and a script that assumed the upstream constant
+            // would have been refused differently from the phone's own screen.
+            "protection_sensitivity" to ContentGate.profile().sensitivity,
+            "protection_threshold" to ContentGate.protectionThreshold(),
+            "protection_nsfw_mode" to ContentGate.profile().nsfwMode.name,
+            "protection_revision" to ContentGate.profile().policyRevision,
         ))
     }
 
@@ -352,7 +360,7 @@ class ApiServer(
         val bmp = decode(req.body)
             ?: return respond(out, 400, "application/json", json("error" to "cannot decode image"))
         withPipeline(out, SwapOptions.load(ctx).overrides(req.query), applySource = false) { _ ->
-            val gate = ContentGate.inspectStill(bmp)
+            val gate = ContentGate.inspectStill(bmp, R.string.gate_subject_source_image)
             log("api source score %+.3f".format(gate.score))
             if (!gate.permitted) {
                 respond(out, 403, "application/json",
@@ -388,7 +396,7 @@ class ApiServer(
         val bmp = decode(req.body)
             ?: return respond(out, 400, "application/json", json("error" to "cannot decode image"))
         withPipeline(out, SwapOptions.load(ctx).overrides(req.query)) { _ ->
-            val gate = ContentGate.inspectStill(bmp)
+            val gate = ContentGate.inspectStill(bmp, R.string.gate_subject_target_image)
             if (!gate.permitted) {
                 respond(out, 403, "application/json",
                         json("error" to ContentGate.messageEnglish(ctx, R.string.gate_subject_target_image, gate),
@@ -438,7 +446,7 @@ class ApiServer(
         }
         val outFile = File(ctx.cacheDir, "api_out.mp4")
         withPipeline(out, SwapOptions.load(ctx).overrides(req.query)) { opts ->
-            val gate = ContentGate.inspectClip(inFile)
+            val gate = ContentGate.inspectClip(inFile, R.string.gate_subject_target_video)
             // `detail` is an ARGUMENT, never part of the format string: it contains a "%)"
             // that gets read as a conversion.
             log("api target content: %s, worst %+.3f".format(gate.detail, gate.score))

@@ -660,6 +660,20 @@ void Pipeline::updateConfig(const Config& c) {
   live.lipSyncWeight     = c.lipSyncWeight;
   live.faceEdit          = c.faceEdit;
   for (int i = 0; i < 14; ++i) live.faceEditor[i] = c.faceEditor[i];
+  // The content gate's threshold, pushed down from Kotlin.
+  //
+  // ⚠ It was NOT copied here before, which meant `cfg.nsfwThreshold` stayed at its
+  // 0.25 default for the life of the process no matter what the app's policy said.
+  // The consequence was that the Kotlin slider could only ever TIGHTEN the gate:
+  // raising the sensitivity to 0.10 was refused here anyway, because this floor
+  // still said 0.25.
+  //
+  // ⚠ Kotlin owns the POLICY -- the sampling rate, the video flagged-rate rule, the
+  // refusal wording and the NaN-is-not-permission rule all live there. This value
+  // is the FLOOR: the point at which this pipeline stops deeming itself clear.
+  // It is set from Kotlin's own threshold so the two cannot disagree, and so the
+  // native invariant (`gateCleared`) means exactly what the app's policy says.
+  live.nsfwThreshold     = c.nsfwThreshold;
 }
 
 // ------------------------------------------------------------ content gate
@@ -797,6 +811,11 @@ std::vector<Face> Pipeline::analyse(const ffcv::Image& frame, bool boxesOnly,
   std::vector<std::vector<float>> out;
   if (!ffnn::execute(p_->n.det, {"input"}, {in.data()}, out)) {
     err_ = std::string("detector: ") + ffnn::lastError();
+    return faces;
+  }
+  if (out.empty() || out[0].size() < (size_t)20 * 8400) {
+    err_ = "detector: output too small (" +
+           std::to_string(out.empty() ? 0 : out[0].size()) + " floats)";
     return faces;
   }
   msDetect += nowMs() - t0;

@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include "net.h"
 
@@ -105,6 +106,7 @@ int g_gpuTrust = 0;
 // No Winograd: see ffnn::setLowMemory. Read by openNet, so it reaches every model and the
 // GPU agreement check alike.
 bool g_lowMem = false;
+int g_numThreads = 2;
 std::string g_gpuWhy;
 
 void logLine(const char* s) {
@@ -118,18 +120,22 @@ void logLine(const char* s) {
 // the detector the SAME way the pipeline does. Two copies of the option block is how a
 // check ends up validating a configuration nothing actually runs.
 bool openNet(ncnn::Net& net, const Spec& sp, bool gpu, std::string& err) {
-#if NCNN_VULKAN
-  net.opt.use_vulkan_compute = gpu;
-#else
-  (void)gpu;
-#endif
+  (void)gpu;   // Vulkan is OFF in this build (NCNN_VULKAN=OFF); keep arg for call sites.
   net.opt.lightmode = true;
-  net.opt.num_threads = 4;
-  net.opt.use_packing_layout = true;
-  net.opt.use_fp16_packed = true;
-  net.opt.use_fp16_storage = true;
-  net.opt.use_fp16_arithmetic = true;
-  if (g_lowMem) net.opt.use_winograd_convolution = false;
+  net.opt.num_threads = g_numThreads;
+  // MAXIMUM-STABILITY CPU settings for Android. Vulkan is OFF in this build;
+  // fp16/packing/Winograd/sgemm are all switched off because on mid-range
+  // MediaTek Cortex-A78 parts we observed hard SIGBUS/SIGSEGV during the first
+  // hyperswap inference with ncnn's speed-tuned defaults. A slower swap that
+  // works is strictly better than a crash.
+  net.opt.use_packing_layout = false;
+  net.opt.use_fp16_packed = false;
+  net.opt.use_fp16_storage = false;
+  net.opt.use_fp16_arithmetic = false;
+  net.opt.use_sgemm_convolution = false;
+  net.opt.use_winograd_convolution = false;
+  net.opt.openmp_blocktime = 0;
+  (void)g_lowMem;  // low-mem path is the only path now
 
   const std::string base = g_spec.modelDir + "/" + sp.stem + ".ncnn.";
   if (net.load_param((base + "param").c_str()) != 0) {
@@ -143,12 +149,32 @@ bool openNet(ncnn::Net& net, const Spec& sp, bool gpu, std::string& err) {
   return true;
 }
 
-// `out` as a flat tensor, channel by channel -- ncnn pads each channel to its alignment, so
-// a flat copy of `Mat::data` would interleave the padding into the numbers.
+// `out` as a flat tensor, channel by channel, row by row. ncnn pads each channel
+// to its alignment (cstep), so we copy one ROW at a time rather than the whole
+// channel at once; and we handle both 3-D (c>0, h>0) and 1-D (c==0, h==0,
+// single vector of w floats) outputs -- yoloface produces 1-D detections, which
+// the previous code handled as "0 elements * c channels" and wrote into a
+// zero-sized vector (heap corruption / SIGSEGV).
 void flattenMat(const ncnn::Mat& m, std::vector<float>& out) {
-  size_t n = (size_t)m.w * m.h;
-  out.resize(n * (size_t)m.c);
-  for (int q = 0; q < m.c; ++q) memcpy(out.data() + (size_t)q * n, m.channel(q), n * sizeof(float));
+  if (m.c <= 1 && m.h <= 1) {
+    // 1-D vector of w floats.
+    out.resize((size_t)m.w);
+    if (m.w > 0 && m.data) memcpy(out.data(), m.data, (size_t)m.w * sizeof(float));
+    return;
+  }
+  const size_t rowFloats = (size_t)m.w;
+  const size_t chFloats = (size_t)m.w * (size_t)m.h;
+  out.resize(chFloats * (size_t)m.c);
+  for (int q = 0; q < m.c; ++q) {
+    const float* src = m.channel(q);
+    float* dst = out.data() + (size_t)q * chFloats;
+    if (!src) continue;
+    for (int y = 0; y < m.h; ++y) {
+      memcpy(dst + (size_t)y * rowFloats,
+             src + (size_t)y * (size_t)m.w,   // per-row stride == w floats when packed
+             rowFloats * sizeof(float));
+    }
+  }
 }
 
 bool runOne(ncnn::Net& net, const Spec& sp, const ncnn::Mat& in, std::vector<float>& out) {
@@ -235,6 +261,28 @@ void verifyGpu() {
   logLine(msg);
 }
 
+// Pick a safe thread count. 4 threads on a budget 4xA78+4xA55 MediaTek caused
+// peak-memory OOM kills on 6-8 GB phones during video swap (each worker holds
+// its own intermediate buffers). Big cores only (2) is the conservative
+// default: slower per frame, but it does not get the process killed.
+static int pickThreadCount() {
+  // Allow explicit override for testing.
+  if (const char* e = getenv("FFNCNN_THREADS")) {
+    int v = atoi(e);
+    if (v >= 1 && v <= 8) return v;
+  }
+  // Conservative single-thread default for Android. On budget MediaTek parts
+  // (Dimensity 7xxx with 4 A78 + 4 A55) multi-threaded ncnn showed intermittent
+  // native SIGSEGV/SIGBUS during the first hyperswap inference -- each worker
+  // allocates its own ~120 MB scratch workspace and peak RSS blew past the
+  // per-process LMK limit. 1 thread uses ~35 % less peak memory, which is the
+  // difference between "works" and "the OS kills the process mid-swap".
+  // Users on flagship SoCs can override with adb setprop FFNCNN_THREADS=N,
+  // but out of the box we prefer stability.
+  (void)sysconf;
+  return 1;
+}
+
 }  // namespace
 
 bool ncnnInit(const InitSpec& spec) {
@@ -251,6 +299,38 @@ bool ncnnInit(const InitSpec& spec) {
   // Vulkan must be discovered here rather than at the first GPU model open.
   g_vulkan = ncnn::get_gpu_count() > 0;
 #endif
+  g_numThreads = pickThreadCount();
+  // Force low-memory path on Android ncnn always: no Winograd, slightly smaller
+  // peak scratch. Winograd saves ~2x on big cores, but on 1 thread with the
+  // conservative settings above its memory cost is pure downside.
+  g_lowMem = true;
+  logLine((std::string("ffnn/ncnn: threads=") + std::to_string(g_numThreads) +
+           " lowmem=1").c_str());
+  // Verify the REQUIRED model files exist BEFORE reporting success. The detector is
+  // the probe (as on QNN), but also require the rest of the mandatory set so we never
+  // return "ready" while ffpipe's tier walk is about to fail on fan2d/arcface/hyperswap.
+  // A tier is never half-present (downloader renames after SHA256), but if the user
+  // cleared the cache or a partial download left things in a weird state we want an
+  // actionable message, not a native crash.
+  const char* requiredStems[] = {
+    "yoloface_8n_b1", "2dfan4_heatmaps", "arcface_w600k_r50_b1",
+    "hyperswap_1a_256_fp32", "nsfw_2_sim",
+  };
+  for (size_t i = 0; i < sizeof(requiredStems)/sizeof(requiredStems[0]); ++i) {
+    const char* stem = requiredStems[i];
+    std::string ppath = g_spec.modelDir + "/" + stem + ".ncnn.param";
+    std::string bpath = g_spec.modelDir + "/" + stem + ".ncnn.bin";
+    FILE* fp = fopen(ppath.c_str(), "rb");
+    FILE* fb = fopen(bpath.c_str(), "rb");
+    if (fp) fclose(fp);
+    if (fb) fclose(fb);
+    if (!fp || !fb) {
+      g_err = std::string("ncnn model files incomplete (missing ") + stem +
+              ") in " + g_spec.modelDir +
+              ". Please download the CPU model set (Settings > Download models).";
+      return false;
+    }
+  }
   return true;
 }
 
@@ -337,10 +417,40 @@ bool ncnnExecute(Handle h, const std::vector<std::string>& names,
       return false;
     }
     const InSpec& sh = want[idx];
-    // Wrapping the caller's buffer, not copying it: ffpipe owns it for the call's duration
-    // and every one of these is megabytes.
-    ncnn::Mat in = sh.c == 0 ? ncnn::Mat(sh.w, (void*)data[i])
-                             : ncnn::Mat(sh.w, sh.h, sh.c, (void*)data[i]);
+    if (!data[i]) {
+      g_err = "ncnn: null input buffer for " + std::string(names[i]);
+      return false;
+    }
+    ncnn::Mat in;
+    if (sh.c == 0) {
+      // 1-D embedding (shape [w]). create(int w, size_t elemsize, Allocator*).
+      in.create(sh.w, (size_t)4u, (ncnn::Allocator*)nullptr);
+      if (in.empty() || (size_t)in.w != (size_t)sh.w) {
+        g_err = "ncnn: alloc failed for 1d input " + std::string(names[i]);
+        return false;
+      }
+      std::memcpy(in.data, data[i], sizeof(float) * (size_t)sh.w);
+    } else {
+      // 3-D CHW image input (shape [c,h,w] in ncnn parlance). Allocate via ncnn
+      // and COPY plane-by-plane so ncnn's per-plane alignment is respected.
+      // Packing type 0 = elempack=1 (plain floats, no fp16/int8 packing).
+      in.create(sh.w, sh.h, sh.c, (size_t)4u, 0, (ncnn::Allocator*)nullptr);
+      if (in.empty() || in.w != sh.w || in.h != sh.h || in.c != sh.c) {
+        g_err = "ncnn: alloc failed for 3d input " + std::string(names[i]);
+        return false;
+      }
+      const float* src = (const float*)data[i];
+      const size_t planeBytes = sizeof(float) * (size_t)sh.w * (size_t)sh.h;
+      for (int q = 0; q < sh.c; ++q) {
+        float* dst = in.channel(q);
+        if (!dst) { g_err = "ncnn: null channel"; return false; }
+        // Since in was created with sh.w x sh.h and elemsize=4, row stride in
+        // floats equals sh.w (= in.w) -- no per-row gap. So a single memcpy per
+        // plane is correct. If ncnn padded per channel for alignment, only the
+        // tail gap would differ between channels; src layout is packed CHW.
+        std::memcpy(dst, src + (size_t)q * (size_t)sh.w * (size_t)sh.h, planeBytes);
+      }
+    }
     char blob[8];
     snprintf(blob, sizeof(blob), "in%zu", idx);
     if (ex.input(blob, in) != 0) {

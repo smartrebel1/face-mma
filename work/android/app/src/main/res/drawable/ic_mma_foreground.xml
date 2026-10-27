@@ -1,0 +1,51 @@
+<!--
+  MMA Face launcher foreground: two stylized faces, one slightly behind
+  the other, to evoke face-swap. Designed to sit centered in the adaptive
+  icon's safe zone (108dp of a 108dp viewport leaves room for the mask).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- Back face (left, slightly cooler/translucent) -->
+    <group android:translateX="-10" android:translateY="4">
+        <path
+            android:fillColor="#1E293B"
+            android:pathData="M54,28
+                C43,28 34,37 34,48
+                C34,61 42,72 54,72
+                C66,72 74,61 74,48
+                C74,37 65,28 54,28 Z" />
+        <!-- eyes -->
+        <path android:fillColor="#FFFFFF" android:pathData="M46,46 h4 v2 h-4 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M58,46 h4 v2 h-4 Z" />
+        <!-- mouth -->
+        <path android:fillColor="#FFFFFF" android:pathData="M48,58 h12 v1.5 h-12 Z" />
+    </group>
+
+    <!-- Front face (right, bright accent) -->
+    <group android:translateX="10" android:translateY="-2">
+        <path
+            android:fillColor="#EF4444"
+            android:pathData="M54,28
+                C43,28 34,37 34,48
+                C34,61 42,72 54,72
+                C66,72 74,61 74,48
+                C74,37 65,28 54,28 Z" />
+        <!-- eyes -->
+        <path android:fillColor="#FFFFFF" android:pathData="M45,45 h5 v3 h-5 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M58,45 h5 v3 h-5 Z" />
+        <!-- smile -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M46,58 Q54,64 62,58 L62,60 Q54,66 46,60 Z" />
+    </group>
+
+    <!-- Swap arrow between them -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M48,50 L52,46 L52,49 L60,49 L60,51 L52,51 L52,54 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M60,50 L56,54 L56,51 L48,51 L48,49 L56,49 L56,46 Z" />
+</vector>

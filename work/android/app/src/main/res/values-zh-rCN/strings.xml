@@ -360,6 +360,7 @@
     <string name="set_tab_device">设备</string>
     <string name="set_tab_api">API</string>
     <string name="set_tab_about">关于</string>
+    <string name="set_tab_protection">保护</string>
     <string name="set_theme_title">主题</string>
     <string name="set_theme_dark">深色模式</string>
     <string name="set_theme_follow_system">跟随系统</string>
@@ -510,4 +511,52 @@
     <string name="status_cannot_read_driver">无法读取驱动视频：%1$s</string>
     <string name="status_running">正在运行…</string>
     <string name="gate_subject_driver_video">驱动视频</string>
+    <!-- ==================================================== content gate -->
+    <string name="gate_blocked_adjustable">%1$s 在当前保护敏感度下看起来过于露骨。可以提高敏感度设置，但强制检查始终生效。</string>
+
+    <!-- ==================================================== protection control -->
+    <string name="guard_title">保护敏感度</string>
+    <string name="guard_summary">内容检查对把握不大的素材拒绝得有多严格。</string>
+    <string name="guard_value">%1$d</string>
+    <string name="guard_end_low">最不敏感</string>
+    <string name="guard_end_high">最敏感</string>
+    <string name="guard_slider_cd">保护敏感度，%1$d / 100</string>
+    <string name="guard_note">它只调整一个阈值：内容分数要多高检查才会拒绝素材。它绝不会关闭检查，绝不会削弱强制规则，也绝不会推翻你的同意。</string>
+    <string name="guard_note_adjustable">可调整：内容分数阈值，以及视频中被标记比例的上限。</string>
+    <string name="guard_note_mandatory">不可调整：内容检查本身、失败的检查必须拒绝素材这一规则、视频标记比例上限、同意确认，以及所有禁止使用规则。</string>
+    <string name="guard_threshold_now">当前阈值：%1$s</string>
+    <string name="guard_reset">恢复默认</string>
+    <string name="guard_reset_done">敏感度已恢复默认</string>
+
+    <!-- ==================================================== safety notice -->
+    <string name="safety_title">请负责任地使用</string>
+    <string name="safety_body">人脸修改必须尊重同意、隐私与法律。\n\n• 只使用你自己拥有的素材，或你已获得明确许可编辑的素材。\n• 未经真人明确同意，不得制作、索取、分享或发布其私密或性影像。\n• 不得使用编辑后的素材冒充他人、骚扰、欺诈、威胁或误导他人。\n• 遵守当地法律以及本应用和其模型的许可条款。\n• 你要对自己使用本应用的方式负责。本提示不免除任何法律义务，也不使被禁止的使用变得可以接受。</string>
+    <string name="safety_agree">我同意并继续</string>
+    <string name="safety_exit">退出</string>
+    <string name="safety_acknowledged">已于 %1$s 接受</string>
+    <string name="safety_acknowledged_never">尚未接受</string>
+    <string name="safety_mandatory_note">此提示无法在应用内关闭。使用本应用即须接受它。</string>
+    <string name="safety_privacy_body">处理在此设备上完成。你的照片和视频绝不会被上传。模型文件单独下载，在按流量计费的连接上下载前应用会先询问。</string>
+
+    <!-- ==================================================== false-rejection diagnostics -->
+    <string name="guard_diag_title">拒绝记录</string>
+    <string name="guard_diag_summary">%1$s</string>
+    <string name="guard_diag_empty">没有记录任何拒绝。</string>
+    <string name="guard_diag_clear">清除记录</string>
+    <string name="guard_diag_cleared">已清除拒绝记录</string>
+    <string name="guard_diag_share">分享记录</string>
+    <string name="guard_diag_body">应用会记录是哪条规则拒绝了请求以及当时的数值，以便调查并纠正误判。记录只包含规则标识、分数和阈值——绝不包含你的图像、视频、文件名或生物特征数据。</string>
+    <string name="guard_diag_row">%1$s · %2$s</string>
+
+    <!-- ==================================================== NSFW mode -->
+    <string name="nsfw_mode_title">NSFW 模式</string>
+    <string name="nsfw_mode_summary">是否允许应用处理你有权处理的成人内容。</string>
+    <string name="nsfw_mode_off">关闭</string>
+    <string name="nsfw_mode_on">开启</string>
+    <string name="nsfw_mode_cd">NSFW 模式，%1$s</string>
+    <string name="nsfw_mode_off_note">内容检查会拒绝任何被标记的内容。敏感度滑块只会让它更严格。</string>
+    <string name="nsfw_mode_on_note">内容检查仍然在每个路径上运行，也仍然会拒绝模型确信是露骨的内容。它对模型只是不确定的内容拒绝得更少，因此你有权处理的成人内容不会被拒绝。</string>
+    <string name="nsfw_mode_rules">开启不会关闭检查，不会让失败的检查通过，也不会改变同意规则、涉及真人的规则或涉及儿童的规则。将其用于你无权处理的材料是不允许的，责任由你承担。</string>
+    <string name="nsfw_mode_responsibility">你有权处理该材料，并遵守所在地的法律，责任由你承担。</string>
+    <string name="nsfw_mode_threshold">当前阈值：%1$s</string>
 </resources>

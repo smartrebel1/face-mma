@@ -82,18 +82,17 @@ fun AppMark(size: Dp = 30.dp, modifier: Modifier = Modifier) {
 }
 
 /**
- * The wordmark.
+ * The wordmark — "MMA FACE".
  *
- * Two weights on one word rather than a display font, because no font may be bundled here
- * (see [Theme.kt]). The weight break at FACE|FUSION is what carries the identity; without
- * it this is just a heading in caps.
+ * Two weights on "MMA" | "FACE" to preserve the two-tone brand feel of the
+ * original mark while reflecting the new name.
  */
 @Composable
 fun Wordmark(modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onBackground) {
     Text(
         buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("MMA ") }
             withStyle(SpanStyle(fontWeight = FontWeight.Light)) { append("FACE") }
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("FUSION") }
         },
         style = WordmarkStyle,
         color = color,

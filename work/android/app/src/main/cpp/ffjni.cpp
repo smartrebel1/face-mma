@@ -9,11 +9,15 @@
 
 #include <jni.h>
 #include <android/bitmap.h>
+#include <android/log.h>
 
 #include <cmath>
 #include <cstdio>    // snprintf, for stageMillis
 #include <cstdlib>   // setenv/unsetenv, for setForcedBackend
 #include <cstring>
+#include <csignal>
+#include <unistd.h>  // _exit
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,10 +27,76 @@
 #include "ffnn.h"
 #include "ffqnn.h"
 
+// Native crash breadcrumb: if a fatal signal hits inside ffnative (SIGSEGV/SIGABRT/
+// SIGBUS/SIGILL/SIGFPE) we print a FATAL line with the active backend and g_err
+// to logcat BEFORE the default handler kills the process, so a bug report that
+// reads "the app just closes" at least names where it died. We do not attempt
+// recovery -- the process is dead anyway. We then re-raise with SIG_DFL so
+// debuggerd still produces a tombstone.
+//
+// g_err_ptr is file-scope (not namespace-scoped) so the signal handler, installed
+// via __attribute__((constructor)) before the namespace block below opens, can
+// see it. It is set to point at namespace-scope g_err from an init routine that
+// runs after static constructors.
+static std::string* g_err_ptr = nullptr;
+static void ffnativeCrashSig(int sig, siginfo_t* info, void*) {
+  const char* name = "SIG?";
+  switch (sig) {
+    case SIGSEGV: name = "SIGSEGV"; break;
+    case SIGABRT: name = "SIGABRT"; break;
+    case SIGBUS:  name = "SIGBUS";  break;
+    case SIGILL:  name = "SIGILL";  break;
+    case SIGFPE:  name = "SIGFPE";  break;
+  }
+  const char* err = "";
+  if (g_err_ptr) err = g_err_ptr->c_str();
+  __android_log_print(ANDROID_LOG_FATAL, "ffnative",
+                      "NATIVE CRASH %s si_code=%d addr=%p last_error=%s",
+                      name, info ? info->si_code : 0,
+                      info ? info->si_addr : nullptr, err);
+  // Also write a tombstone stamp to the app's files dir if we can find it via
+  // the env the activity sets. This lets the Kotlin layer surface it next
+  // launch instead of vanishing into logcat.
+  if (const char* fd = getenv("FFNATIVE_FILES_DIR")) {
+    FILE* f = fopen((std::string(fd) + "/native_crash.log").c_str(), "w");
+    if (f) {
+      fprintf(f, "sig=%s code=%d addr=%p err=%s\n", name,
+              info ? info->si_code : 0,
+              info ? info->si_addr : nullptr, err);
+      fflush(f);
+      fclose(f);
+    }
+  }
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = SIG_DFL;
+  sigemptyset(&sa.sa_mask);
+  sigaction(sig, &sa, nullptr);
+  raise(sig);
+  _exit(128 + sig);
+}
+__attribute__((constructor))
+static void ffnativeInstallCrashHandler() {
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_sigaction = ffnativeCrashSig;
+  sa.sa_flags = SA_SIGINFO;
+  sigemptyset(&sa.sa_mask);
+  int sigs[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE};
+  for (size_t i = 0; i < sizeof(sigs)/sizeof(sigs[0]); ++i)
+    sigaction(sigs[i], &sa, nullptr);
+}
+
 namespace {
 
 std::unique_ptr<ffpipe::Pipeline> g_pipe;
 std::string g_err;
+
+// An init routine that wires the file-scope g_err_ptr to the namespace-scope
+// g_err so the crash handler can read it. Constructor priority guarantees it
+// runs after g_err is zero-initialized and before normal code.
+__attribute__((constructor(200)))
+static void ffnativeWireCrashErrPtr() { g_err_ptr = &g_err; }
 std::string g_rejectedTier;
 std::string g_rejectedWhy;
 std::vector<std::string> g_skipTiers;
@@ -113,6 +183,24 @@ inline uint8_t clamp8(int v) { return (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v))
 bool g_faceEdit = false;
 float g_faceEditor[14] = {};
 
+// The content gate's threshold, PUSHED from Kotlin rather than passed.
+//
+// ⚠ The same reason the face editor is pushed and not passed: initEx must not be
+// able to leave the pipeline at the default while Kotlin believes it is holding a
+// different threshold. A stored copy means the order of this and init does not
+// matter -- initEx re-applies it to the pipeline it just built.
+//
+// ⚠ Kotlin owns the POLICY. This is the FLOOR: the score at which the native
+// pipeline stops deeming itself clear (`Impl::gateCleared`), which is the
+// invariant that lets `swapAll` and the other frame-changing stages run at all.
+// It is set from Kotlin's own threshold so the two cannot disagree.
+//
+// ⚠ A NaN is NOT accepted. A NaN here would make `score > threshold` false for
+// every score, so the pipeline would consider itself clear unconditionally --
+// a gate that fails OPEN. The default is therefore upstream's 0.25 and a
+// non-finite value is refused, not stored.
+float g_nsfwThreshold = 0.25f;
+
 void applyFaceEditor(ffpipe::Config& cfg) {
   cfg.faceEdit = g_faceEdit;
   for (int i = 0; i < 14; ++i) cfg.faceEditor[i] = g_faceEditor[i];
@@ -172,6 +260,10 @@ Java_com_facefusion_mobile_NativePipe_initEx(JNIEnv* env, jclass, jstring jLib, 
   }
   tunables(env, cfg, weight, maskBlur, jPadding, detScore, lmkScore, pixelBoost,
            largestOnly, faceEnhance, enhanceBlend, lipSyncWeight, referenceDistance);
+  // The content gate's threshold, from the stored copy. PUSHED for the same reason as
+  // the face editor below: no path into init may leave the pipeline holding a
+  // different threshold from the one Kotlin's policy is using.
+  cfg.nsfwThreshold = g_nsfwThreshold;
 
   // PUSHED, not passed. There are four paths into init -- the preview, runSwap, the
   // self-test and the API -- and a per-call-site argument is a list you can be absent
@@ -226,7 +318,43 @@ Java_com_facefusion_mobile_NativePipe_setOptionsEx(JNIEnv* env, jclass,
   ffpipe::Config cfg;
   tunables(env, cfg, weight, maskBlur, jPadding, detScore, lmkScore, pixelBoost,
            largestOnly, faceEnhance, enhanceBlend, lipSyncWeight, referenceDistance);
+  // ⚠ The threshold goes through here too. `updateConfig` copies it, and a copy
+  // taken from a Config that does not carry it would reset the threshold to the
+  // DEFAULT on every slider change -- so the gate would silently jump back to
+  // 0.25 the first time the user moved anything else.
+  cfg.nsfwThreshold = g_nsfwThreshold;
   g_pipe->updateConfig(cfg);
+  return JNI_TRUE;
+}
+
+/**
+ * The content gate's threshold, pushed down from Kotlin.
+ *
+ * ⚠ Kotlin owns the policy; this is the native FLOOR -- the score at which the
+ * pipeline stops deeming itself clear, which is what lets the frame-changing
+ * stages run at all. It is pushed rather than passed because Kotlin is the only
+ * place that knows the user's setting, and because a stored copy means the order
+ * of this call and init does not matter.
+ *
+ * ⚠ A non-finite value is REFUSED rather than stored: a NaN threshold makes
+ * `score > threshold` false for every score, so the pipeline would consider
+ * itself clear unconditionally. A gate that fails open is worse than no gate.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_facefusion_mobile_NativePipe_setNsfwThreshold(JNIEnv*, jclass, jfloat threshold) {
+  // Float.MAX_VALUE is used by Kotlin's GuardProfile.ADULT_THRESHOLD to disable
+  // the score gate (no finite score can exceed it). std::isfinite rejects that
+  // as well as NaN/Infinity; accept any finite positive threshold OR MAX_VALUE,
+  // refuse only NaN and real infinities (which would make the comparison behave
+  // wrongly in ffpipe).
+  float t = (float)threshold;
+  if (std::isnan(t) || std::isinf(t)) return JNI_FALSE;
+  g_nsfwThreshold = t;
+  if (g_pipe) {
+    ffpipe::Config cfg = g_pipe->config();
+    cfg.nsfwThreshold = g_nsfwThreshold;
+    g_pipe->updateConfig(cfg);
+  }
   return JNI_TRUE;
 }
 
@@ -729,19 +857,32 @@ Java_com_facefusion_mobile_NativePipe_probeTierChain(JNIEnv* env, jclass, jstrin
     }
     return env->NewStringUTF(out.c_str());
   }
-  // QNN, including the case where the backend did not come up at all. Deliberately NOT
-  // routed through the seam: ffqnn::tierChain has its own fallback for an unmeasured
-  // device, and that fallback is the right answer here -- a transient QNN init failure on
-  // a Hexagon part must still produce a loadable chain, not an empty one.
-  ffqnn::DeviceInfo d{};
-  if (!ffqnn::init(lib + "/libQnnHtp.so", lib + "/libQnnSystem.so", jstr(env, jSkel)))
-    g_err = ffqnn::lastError();   // leave d unmeasured; the chain's own fallback applies
-  else
-    d = ffqnn::deviceInfo();
+  // QNN path -- but only when a real on-chip Hexagon HTP is present. If ffqnn::init
+  // fails, or it inits but deviceInfo() finds no HTP (non-Qualcomm SoC where
+  // libQnnHtp.so is a vendor stub), we MUST NOT hand back ffqnn::tierChain(default d)
+  // because that returns {"v68"} and makes the downloader fetch QNN v68 models that
+  // can never execute. On those chips the correct answer is the ncnn chain.
+  if (ffqnn::init(lib + "/libQnnHtp.so", lib + "/libQnnSystem.so", jstr(env, jSkel))) {
+    ffqnn::DeviceInfo d = ffqnn::deviceInfo();
+    if (d.ok) {
+      std::string out;
+      for (const std::string& t : ffqnn::tierChain(d)) {
+        if (!out.empty()) out += ",";
+        out += t;
+      }
+      return env->NewStringUTF(out.c_str());
+    }
+    ffqnn::reset();
+    g_err = ffqnn::lastError();
+  } else {
+    g_err = ffqnn::lastError();
+  }
+  // No usable Hexagon HTP: return the ncnn chain so the downloader and UI both
+  // point at the CPU model set.
   std::string out;
-  for (const std::string& t : ffqnn::tierChain(d)) {
+  for (const std::string& v : ffnn::variantChain(ffnn::Backend::Ncnn)) {
     if (!out.empty()) out += ",";
-    out += t;
+    out += v;
   }
   return env->NewStringUTF(out.c_str());
 }

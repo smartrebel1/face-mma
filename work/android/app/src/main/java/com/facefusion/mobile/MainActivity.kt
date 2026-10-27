@@ -1,5 +1,6 @@
 package com.facefusion.mobile
 
+import android.app.ActivityManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -226,6 +227,13 @@ class MainActivity : ComponentActivity() {
     private var elapsedS by mutableStateOf(0.0)
     private var preview by mutableStateOf<Bitmap?>(null)
     private var outputFile by mutableStateOf<File?>(null)
+
+    /**
+     * Crash-report popup shown once on launch when last_crash.txt exists.
+     * Lets the user share a report, then clears the marker so it does not
+     * keep re-appearing.
+     */
+    private var pendingCrashText by mutableStateOf<String?>(null)
 
     /**
      * Whether the finished output stopped early because the user cancelled.
@@ -458,8 +466,30 @@ class MainActivity : ComponentActivity() {
      * [ThemePrefs] so the choice survives a restart.
      */
     private var darkTheme by mutableStateOf<Boolean?>(null)
-    /** 0..100. The control only tightens the existing content gate, never disables it. */
-    private var protectionLevel by mutableFloatStateOf(0f)
+
+    /**
+     * The protection profile in force.
+     *
+     * ⚠ Mirrored for composition and written by the protection slider; persisted in
+     * [GuardProfileStore] so the choice survives a restart, and pushed into
+     * [ContentGate] so that EVERY processing path -- the still path, the clip path,
+     * the preview, the live camera, the batch runner and the remote API -- reads the
+     * same value at the same time.
+     *
+     * ⚠ The gate holds the authoritative copy ([ContentGate.profile]); this is what
+     * the UI draws. They are set together by [applyGuardProfile] and cannot drift,
+     * because there is only one function that writes either.
+     */
+    private var guardProfile by mutableStateOf(GuardProfile.DEFAULT)
+
+    /**
+     * Whether the responsible-use notice has been accepted.
+     *
+     * Read once at startup and held here so the first composition can decide
+     * whether to show the notice. The authoritative copy lives in [SafetyNotice].
+     */
+    private var safetyAccepted by mutableStateOf(false)
+
     private var confirmMetered by mutableStateOf(false)
 
     /**
@@ -546,8 +576,42 @@ class MainActivity : ComponentActivity() {
      * it keeps four times the area; 4096 is a 12 MP result, which is more than a phone
      * screen or a message will ever show and still fits in memory four times over.
      */
-    private val MAX_SOURCE_EDGE = 2048
-    private val MAX_TARGET_EDGE = 4096
+    /**
+     * Memory-adaptive decode caps (long edge, pixels).
+     *
+     * Upstream hard-coded 2048/4096 — fine on most phones, but on true low-RAM
+     * (<3 GB / Go devices) that OOM-kills the swap on large camera photos.
+     * We query the LARGE heap class (android:largeHeap="true" is in the
+     * manifest, and the native buffers also live in the process heap) and
+     * only scale down when we genuinely have to, keeping the UPSTREAM
+     * resolution on any 4 GB+ device:
+     *
+     *   Low-RAM Go device  -> source 1280, target 2048  (≈4 MP output)
+     *   largeHeap <= 192   -> source 1536, target 2560  (≈6.5 MP)
+     *   largeHeap <= 384   -> source 2048, target 3200  (≈10 MP)
+     *   everything else    -> source 2048, target 4096  (≈16.7 MP, upstream)
+     *
+     * ⚠ Do NOT downsample TARGETS below ~2560px on the long edge on 4+ GB
+     * phones: the face detector/landmarker needs those pixels, and too much
+     * downsampling makes the 5-point landmarks inaccurate on profile faces
+     * which produces the "melted/warped face" warp bug we saw on v2.0.
+     */
+    private val decodeCaps: Pair<Int, Int> by lazy {
+        val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val isLowRam = am.isLowRamDeviceCompat()
+        val lhc = runCatching {
+            val m = ActivityManager::class.java.getMethod("getLargeMemoryClass")
+            (m.invoke(am) as? Int) ?: am.memoryClass
+        }.getOrDefault(am.memoryClass)
+        when {
+            isLowRam               -> 1280 to 2048
+            lhc <= 192             -> 1536 to 2560
+            lhc <= 384             -> 2048 to 3200
+            else                   -> 2048 to 4096
+        }
+    }
+    private val MAX_SOURCE_EDGE get() = decodeCaps.first
+    private val MAX_TARGET_EDGE get() = decodeCaps.second
 
     private var targetW by mutableStateOf(0)
     private var targetH by mutableStateOf(0)
@@ -878,7 +942,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun screenSourceList(bitmaps: List<Bitmap>, tag: String): String? {
         for ((i, bmp) in bitmaps.withIndex()) {
-            val v = ContentGate.inspectStill(bmp)
+            val v = ContentGate.inspectStill(bmp, R.string.gate_subject_source_image)
             // The reason, not only the number. A faulted check reads "NaN" and stops
             // there, and the detail is then the whole story.
             appendLog("$tag source ${i + 1} score %+.3f".format(v.score) +
@@ -1125,7 +1189,7 @@ class MainActivity : ComponentActivity() {
             soft.getPixels(px, 0, soft.width, 0, 0, soft.width, soft.height)
             val bgr = NativePipe.argbToBgr(px, soft.width, soft.height)
             val refusal = withContext(Dispatchers.Default) {
-                val v = ContentGate.inspectStill(bmp)
+                val v = ContentGate.inspectStill(bmp, R.string.gate_subject_source_image)
                 appendLog("live added source score %+.3f".format(v.score) +
                           (if (v.detail.isNotBlank()) "  [" + v.detail + "]" else ""))
                 if (!v.permitted) ContentGate.message(
@@ -1457,6 +1521,16 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Compat helper for ActivityManager.isLowRamDevice (hidden pre-KitKat but
+     * always available via the system public API on API 19+, and this app is
+     * minSdk 26+).
+     */
+    private fun ActivityManager.isLowRamDeviceCompat(): Boolean = runCatching {
+        val m = ActivityManager::class.java.getMethod("isLowRamDevice")
+        m.invoke(this) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    /**
      * The fp16 canary pair, unpacked out of assets.
      *
      * Rewritten on every call rather than cached: the two total 85 KB, and a half-written
@@ -1547,10 +1621,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        protectionLevel = getSharedPreferences("face_mma_protection", MODE_PRIVATE)
-            .getFloat("level", 0f).coerceIn(0f, 100f)
-        ContentGate.setProtectionLevel(protectionLevel)
+        // The protection profile, restored and pushed into the gate BEFORE anything can
+        // be processed. A request that arrives before this would be judged against the
+        // default threshold rather than the user's, which is the one order that would
+        // make the setting look like it did not work.
+        guardProfile = GuardProfileStore.load(this)
+        ContentGate.applyProfile(guardProfile)
+        // So that a refusal is written to the diagnostics history wherever it
+        // happens -- still, clip, preview, live camera, batch or the remote API.
+        ContentGate.attachContext(this)
+        // The responsible-use notice. Read here so the first composition knows
+        // whether to ask.
+        safetyAccepted = SafetyNotice.isAcknowledged(this)
         BugReport.install(this)
+        NativePipe.setFilesDir(filesDir.absolutePath)
         NativePipe.ensureLoaded()
         // BEFORE the first probe, and that ordering is the whole point: ModelPaths caches
         // the backend and the tier chain on first ask, so a runtime pinned in Settings and
@@ -1701,6 +1785,53 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FaceFusionTheme(darkTheme) {
+                // Show crash report on first composition after a crash (if one is pending).
+                // Uses LaunchedEffect(Unit) so it fires once per activity creation.
+                LaunchedEffect(Unit) {
+                    if (BugReport.hasCrash(this@MainActivity)) {
+                        val sb = StringBuilder()
+                        runCatching { sb.append(BugReport.crashFile(this@MainActivity).readText()) }
+                        sb.append("\n--- recent process exits ---\n")
+                        sb.append(BugReport.composeExitHistory(this@MainActivity))
+                        pendingCrashText = sb.toString()
+                    }
+                }
+                pendingCrashText?.let { crashText ->
+                    AlertDialog(
+                        onDismissRequest = {
+                            BugReport.clearCrash(this@MainActivity)
+                            pendingCrashText = null
+                        },
+                        title = { Text("تقرير إغلاق غير متوقع") },
+                        text = {
+                            Text(
+                                "أُغلِق التطبيق بشكل غير متوقع آخر مرة.\n" +
+                                "اضغط \"مشاركة\" لإرسال التقرير لنا.\n\n" +
+                                "The app exited unexpectedly last run. Tap Share to send the crash report.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val body = buildString {
+                                    append("MMA Face v2.1 crash report\n")
+                                    append("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n")
+                                    append("Android: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})\n\n")
+                                    append(crashText)
+                                }
+                                BugReport.share(this@MainActivity, body)
+                                BugReport.clearCrash(this@MainActivity)
+                                pendingCrashText = null
+                            }) { Text("مشاركة / Share") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                BugReport.clearCrash(this@MainActivity)
+                                pendingCrashText = null
+                            }) { Text("تجاهل / Dismiss") }
+                        },
+                    )
+                }
                 // The download runs in a service, on its own thread. Rather than trust a
                 // cross-thread state write to invalidate exactly the right scope, re-read
                 // the disk while it matters; the loop exits as soon as the set is complete.
@@ -1912,13 +2043,9 @@ class MainActivity : ComponentActivity() {
                                 log = log,
                                 opts = opts,
                                 onOptsChange = ::applyOpts,
-                                protectionLevel = protectionLevel,
-                                onProtectionLevelChange = { level ->
-                                    protectionLevel = level.coerceIn(0f, 100f)
-                                    ContentGate.setProtectionLevel(protectionLevel)
-                                    getSharedPreferences("face_mma_protection", MODE_PRIVATE)
-                                        .edit().putFloat("level", protectionLevel).apply()
-                                },
+                                guardProfile = guardProfile,
+                                onGuardProfileChange = ::applyGuardProfile,
+                                nsfwMode = guardProfile.nsfwMode,
                                 onSaveSource = ::toggleShownSourceSaved,
                                 sourceSaved = shownSourceSaved,
                                 onOpenFaces = { refreshSavedFaces(); facesDialogOpen = true },
@@ -2166,8 +2293,56 @@ class MainActivity : ComponentActivity() {
                                     darkTheme = dark
                                     ThemePrefs.save(this@MainActivity, dark)
                                 },
+                                // The protection control, the responsible-use notice and
+                                // the refusal history. All three live on one tab, on
+                                // purpose: the adjustable thing, the mandatory thing
+                                // and the evidence for calibrating the first.
+                                guardProfile = guardProfile,
+                                onGuardProfileChange = ::applyGuardProfile,
+                                nsfwMode = guardProfile.nsfwMode,
+                                onGuardReset = {
+                                    applyGuardProfile(GuardProfile.DEFAULT)
+                                    status = getString(R.string.guard_reset_done)
+                                },
+                                safetyAcknowledgedAt = SafetyNotice.acknowledgedAt(this@MainActivity),
+                                guardDiagSummary = ProtectionDiagnostics.summary(this@MainActivity),
+                                onGuardDiagClear = {
+                                    ProtectionDiagnostics.clear(this@MainActivity)
+                                    status = getString(R.string.guard_diag_cleared)
+                                },
                             )
                         }
+                    }
+
+                    // ---------------------------------------------------------------
+                    // The responsible-use notice, on first launch.
+                    //
+                    // ⚠ It has NO dismiss action. `onDismissRequest` does nothing,
+                    // because a notice that can be swiped away has been read by nobody,
+                    // and this one is the condition of using the app at all.
+                    //
+                    // ⚠ "Exit" really exits. It finishes the activity, so the app
+                    // cannot be used by swiping the notice away and coming back.
+                    //
+                    // The acceptance is recorded in [SafetyNotice] and is one-way:
+                    // there is no control anywhere in the app that un-accepts it.
+                    if (!safetyAccepted) {
+                        AlertDialog(
+                            onDismissRequest = { /* mandatory: it cannot be swiped away */ },
+                            title = { Text(stringResource(R.string.safety_title)) },
+                            text = { Text(stringResource(R.string.safety_body)) },
+                            confirmButton = {
+                                TextButton({
+                                    SafetyNotice.acknowledge(this@MainActivity)
+                                    safetyAccepted = true
+                                }) { Text(stringResource(R.string.safety_agree)) }
+                            },
+                            dismissButton = {
+                                TextButton({ finish() }) {
+                                    Text(stringResource(R.string.safety_exit))
+                                }
+                            },
+                        )
                     }
 
                     confirmModel?.let { (name, model) ->
@@ -2631,6 +2806,36 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Apply a new protection profile: to the gate, to the screen, and to storage.
+     *
+     * ⚠ All three, in that order, and in ONE place. The gate is updated FIRST so that
+     * a request arriving between the state write and the gate write cannot be judged
+     * against the old threshold; and the write to disk is LAST so that a value that
+     * is not in force is never the one that was persisted.
+     *
+     * ⚠ The change takes effect on the NEXT request, with no rebuild and no restart.
+     * Nothing here touches the native pipeline: the threshold is applied in Kotlin,
+     * at the moment a score becomes a decision, so the models and the graphs are
+     * exactly as they were.
+     */
+    private fun applyGuardProfile(profile: GuardProfile) {
+        // Carry nsfwMode through sanitize -- if we pass only sensitivity + revision the
+        // nsfw field defaults back to OFF every time the slider moves, which makes the
+        // NSFW toggle appear to have no effect.
+        val safe = GuardProfileStore.sanitize(
+            profile.sensitivity, profile.policyRevision, profile.nsfwMode)
+        // The gate first.
+        ContentGate.applyProfile(safe)
+        // Then what the screen draws.
+        guardProfile = safe
+        // Then what survives a restart.
+        GuardProfileStore.save(this, safe)
+        appendLog("protection sensitivity %.2f nsfw=%s -> threshold %.3f".format(
+            safe.sensitivity, safe.nsfwMode.name,
+            GuardProfile.thresholdFor(safe.sensitivity, safe.nsfwMode)))
+    }
+
+    /**
      * @param only the LOCAL filenames to fetch, or null for "whatever this device needs".
      *   A Settings row passes its own files, which is the ONLY way to reach the enhancer
      *   and the lip syncer -- the null path excludes them by name.
@@ -3076,7 +3281,7 @@ class MainActivity : ComponentActivity() {
                 // Every previewed frame, not just the source. The source is checked once,
                 // when the pipeline warms; the target is checked here because the trim
                 // handle can reach any frame in the clip and this pane displays it.
-                ContentGate.inspectStill(frame).let { v ->
+                ContentGate.inspectStill(frame, R.string.gate_subject_this_frame).let { v ->
                     if (!v.permitted) {
                         // Logged with its subject, like every other check: a report that
                         // shows only the SOURCE score passing cannot say this was the
@@ -4149,7 +4354,7 @@ class MainActivity : ComponentActivity() {
                 for ((i, ls) in sources.withIndex()) {
                     val bmp = decodeOriented(ls.uri)
                         ?: return@withContext "cannot read source ${i + 1}"
-                    val verdict = ContentGate.inspectStill(bmp)
+                    val verdict = ContentGate.inspectStill(bmp, R.string.gate_subject_source_image)
                     appendLog("live source ${i + 1} score %+.3f".format(verdict.score) +
                               (if (verdict.detail.isNotBlank()) "  [" + verdict.detail + "]" else ""))
                     if (!verdict.permitted)
@@ -4191,7 +4396,13 @@ class MainActivity : ComponentActivity() {
             // The threshold is set HERE rather than inside LiveEngine because the dev line
             // deletes ContentGate.kt: the engine takes a number and knows nothing about the
             // gate, so this single assignment is the whole of what dev has to remove.
-            live.gateThreshold = ContentGate.THRESHOLD
+            //
+            // ⚠ It is the threshold IN FORCE, not the upstream constant. It used to be
+            // `ContentGate.THRESHOLD`, which meant the live camera ignored the user's
+            // sensitivity setting entirely -- the one path where the camera can be
+            // pointed at anything at any time, and the one path that most needed to
+            // honour the setting.
+            live.gateThreshold = ContentGate.protectionThreshold()
             live.start(this@MainActivity, this@MainActivity) { shot ->
                 // The analyzer thread hands the result straight to Compose state, which is
                 // safe for snapshot state and avoids a per-frame main-thread post.
@@ -4377,7 +4588,7 @@ class MainActivity : ComponentActivity() {
                     appendLog("content gate: W8A16 build, biased " +
                               "+${ContentGate.QUANTISED_BIAS} toward refusing")
                 screenSourceList(prepared.bitmaps, "player")?.let { return@withContext it }
-                ContentGate.inspectClip(tgt).let {
+                ContentGate.inspectClip(tgt, R.string.gate_subject_target_video).let {
                     // `detail` is an ARGUMENT, never interpolated into the format string:
                     // it reads "0/11 flagged (0.0%)" and that trailing `%)` parses as a
                     // conversion. See runSwap -- it cost a whole run once.
@@ -4513,7 +4724,7 @@ class MainActivity : ComponentActivity() {
                                   "+${ContentGate.QUANTISED_BIAS} toward refusing")
                     screenSourceList(prepared.bitmaps, "run")?.let { throw ContentGate.Refused(it) }
                     // The target, sampled across the clip.
-                    ContentGate.inspectClip(tgt).let {
+                    ContentGate.inspectClip(tgt, R.string.gate_subject_target_video).let {
                         // `detail` is an ARGUMENT, never interpolated into the format
                         // string: it reads "0/11 flagged (0.0%)", and that trailing `%)`
                         // is parsed as a conversion -- UnknownFormatConversionException,
@@ -4681,12 +4892,13 @@ class MainActivity : ComponentActivity() {
                               else "talking photo (lip_syncer)")
 
                     status = getString(R.string.status_content_check)
-                    ContentGate.inspectStill(photo).let {
+                    ContentGate.inspectStill(photo, R.string.gate_subject_target_image).let {
                         appendLog("target photo score %+.3f".format(it.score))
                         if (!it.permitted) throw ContentGate.Refused(
                             ContentGate.message(this@MainActivity, R.string.gate_subject_target_image, it))
                     }
-                    if (driver != null && animate) ContentGate.inspectClip(driver).let {
+                    if (driver != null && animate)
+                        ContentGate.inspectClip(driver, R.string.gate_subject_driver_video).let {
                         appendLog("driver content: %s, worst %+.3f".format(it.detail, it.score))
                         if (!it.permitted) throw ContentGate.Refused(
                             ContentGate.message(this@MainActivity, R.string.gate_subject_driver_video, it))
@@ -4851,7 +5063,7 @@ class MainActivity : ComponentActivity() {
                         status = getString(R.string.status_reading_source)
                         val bmp = decodeOriented(src) ?: error("cannot decode source image")
                         status = getString(R.string.status_content_check)
-                        ContentGate.inspectStill(bmp).let {
+                        ContentGate.inspectStill(bmp, R.string.gate_subject_source_image).let {
                             appendLog("source content score %+.3f".format(it.score))
                             if (!it.permitted) throw ContentGate.Refused(
                                 ContentGate.message(this@MainActivity,
@@ -4918,7 +5130,7 @@ class MainActivity : ComponentActivity() {
                                     ?: error("cannot read " + item.name)
 
                         // ⚠ THE GATE, PER ITEM. The same call a single run makes.
-                        ContentGate.inspectClip(f).let {
+                        ContentGate.inspectClip(f, R.string.gate_subject_target_video).let {
                             appendLog(item.name + ": " + it.detail +
                                       ", worst %+.3f".format(it.score))
                             if (!it.permitted) throw ContentGate.Refused(
@@ -5342,13 +5554,15 @@ class MainActivity : ComponentActivity() {
                 // without refusing is decoration.
                 if (srcFile.exists()) {
                     val b = decodeOriented(srcFile)
-                    if (b != null) ContentGate.inspectStill(b).let {
+                    if (b != null)
+                        ContentGate.inspectStill(b, R.string.gate_subject_source_image).let {
                         say("gate source: %s score %+.4f %s"
                             .format(it.verdict, it.score, it.detail))
                         if (!it.permitted) { say("SELFTEST REFUSED: source"); return@launch }
                     }
                 }
-                if (tgtFile.exists()) ContentGate.inspectClip(tgtFile).let {
+                if (tgtFile.exists())
+                    ContentGate.inspectClip(tgtFile, R.string.gate_subject_target_video).let {
                     say("gate target: %s worst %+.4f %s"
                         .format(it.verdict, it.score, it.detail))
                     if (!it.permitted) { say("SELFTEST REFUSED: target"); return@launch }

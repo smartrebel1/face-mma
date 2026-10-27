@@ -502,6 +502,24 @@ bool init(const std::string& backendLib, const std::string& systemLib,
   return initBackend(backendLib, systemLib, skelDir);
 }
 
+// Tears down a half-initialised QNN state so a later init() on the same process
+// can try again. Called when initBackend's symbol resolution / deviceCreate
+// succeeds but no real on-chip Hexagon HTP is enumerated -- on non-Qualcomm
+// SoCs that can happen because libQnnHtp.so dlopen'd as a vendor stub that
+// exposes the API symbols but has no DSP to talk to. Without this reset,
+// g_be.ready stays true and every future ffqnn::init() short-circuits at
+// `if (g_be.ready) return true;` while deviceInfo() still reports "no HTP".
+void reset() {
+  std::lock_guard<std::mutex> lk(g_mu);
+  if (g_be.qnn.backendFree && g_be.backend) g_be.qnn.backendFree(g_be.backend);
+  if (g_be.qnn.deviceFree && g_be.device) g_be.qnn.deviceFree(g_be.device);
+  if (g_be.log && g_be.qnn.logFree) g_be.qnn.logFree(g_be.log);
+  if (g_be.libBackend) dlclose(g_be.libBackend);
+  if (g_be.libSystem)  dlclose(g_be.libSystem);
+  g_be = Backend{};
+  clearError();
+}
+
 Handle load(const std::string& binPath) {
   std::lock_guard<std::mutex> lk(g_mu);
   clearError();

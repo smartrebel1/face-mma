@@ -40,7 +40,7 @@ val variantTag = if (hasContentGate) "" else "-dev"
 // corrupt, each other's downloaded context binaries.  The price is that dev downloads its
 // own ~300 MB tier.
 val idSuffix = if (hasContentGate) "" else ".dev"
-val appLabel = if (hasContentGate) "FaceFusion" else "FaceFusion Dev"
+val appLabel = if (hasContentGate) "MMA Face" else "MMA Face Dev"
 
 // The ncnn backend (roadmap 6), on when its staged build is present.
 //
@@ -493,18 +493,20 @@ android {
         // 114 = 0.9.40 as released: the same content as 112, numbered above 113 so it
         // installs over the one phone that had it.
         // 115 = models can download from hf-mirror.com (issue #18).
-        versionCode = 115
+        versionCode = 250
         versionName = "0.9.41$variantTag"    // "-dev" == NO content gate
         setProperty("archivesBaseName", "facefusion-mobile-$versionName")
         manifestPlaceholders["appLabel"] = appLabel
         ndk { abiFilters += "arm64-v8a" }
+        // Native layer: when prebuiltNativeDir is NOT supplied (local/dev build),
+        // compile the C++ from source via CMake. When prebuiltNativeDir IS
+        // supplied (CI, repackaged-upstream path), we ship libffnative.so
+        // verbatim from the upstream APK and skip CMake entirely to avoid a
+        // source-build SIMD/packing miscompile that caused SIGBUS on MediaTek.
         if (prebuiltNativeDir == null) externalNativeBuild {
             cmake {
                 arguments += listOf("-DANDROID_STL=c++_shared")
                 if (hasNcnn) {
-                    // invariantSeparatorsPath, not absolutePath: CMake reads a Windows
-                    // backslash as an escape, so the path arrives mangled and then simply
-                    // does not exist -- which surfaces as a missing header, not a bad path.
                     arguments += listOf(
                         "-DFF_NCNN=ON",
                         "-DNCNN_DIR=" + ncnnDir.invariantSeparatorsPath,
@@ -517,21 +519,24 @@ android {
     if (prebuiltNativeDir == null) externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            // ⚠ The version bundled with the Android SDK.  #3 pinned 3.28.3 because its
-            // container had that one, and the build here died at
-            // `[CXX1300] CMake '3.28.3' was not found in SDK, PATH, or by cmake.dir` --
-            // a pin only ever narrows who can build, so it names what ships with the SDK.
             version = "3.22.1"
         }
     }
+
     // ⚠ r27.2 is the toolchain every measurement in docs/perf.md was taken with, and moving
     // it silently re-bases them.  #3 moved this to r29 to match its own container; r29 is
     // installed on this bench too, so the build was green either way and the numbers would
     // have quietly stopped comparing.  Change it deliberately, with a re-measure, or not at
     // all.
     ndkVersion = "27.2.12479018"
-    if (prebuiltNativeDir != null) {
-        sourceSets.getByName("main").jniLibs.srcDir(prebuiltNativeDir)
+    // A directory to copy QNN runtime .so files from, even when libffnative.so is
+    // compiled from source (when prebuiltNativeDir is null). Set via
+    // -PjniLibsRuntimeDir=... in CI so the QNN backends land next to the freshly
+    // built libffnative.so without suppressing the native compile.
+    val jniLibsRuntimeDir = providers.gradleProperty("jniLibsRuntimeDir").orNull?.let { file(it) }
+    val jniLibsSrc = prebuiltNativeDir ?: jniLibsRuntimeDir
+    if (jniLibsSrc != null) {
+        sourceSets.getByName("main").jniLibs.srcDir(jniLibsSrc)
     }
 
     // The QNN runtime .so files ship in jniLibs and are dlopen'd by libffnative.so at
@@ -541,8 +546,20 @@ android {
     // dlopen by absolute path requires.
     packaging {
         jniLibs {
+            // On Android 12+ (API 31, which matches our minSdk) uncompressed
+            // native libs loaded directly from the APK are fine AND faster;
+            // but some OEM package parsers (vivo Funtouch, OPPO ColorOS)
+            // reject uncompressed-aligned APKs when the lib entries lack a
+            // proper page-aligned STORE record produced by AGP's own
+            // packaging. Fall back to compressed, extracted-at-install
+            // native libs: universal, no alignment tricks, every package
+            // installer accepts it.
             useLegacyPackaging = true
-            keepDebugSymbols += "**/*.so"
+            // DON'T keep debug symbols in the shipped APK -- they inflate
+            // entries in ways some installers don't expect.
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 
@@ -553,6 +570,12 @@ android {
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
                 keyPassword = keystoreProps.getProperty("keyPassword")
+                // Explicitly enable every APK signature scheme. vivo Funtouch
+                // in particular still wants the v1 JAR signature present;
+                // without it, Package Installer prints "package invalid".
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = false
             }
         }
     }
@@ -560,13 +583,20 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-mic-debug"
-            manifestPlaceholders["appLabel"] = "$appLabel Debug"
+            // No applicationIdSuffix -- every build (debug or release) must
+            // install as the SAME app id so a user can upgrade from one CI APK
+            // to the next without uninstalling. The previous .debug suffix
+            // made com.facefusion.mobile.debug a separate app that would
+            // install beside (and conflict with residues of) prior builds,
+            // producing "App not installed" for users who had ever installed
+            // a differently-suffixed build.
+            versionNameSuffix = "-dbg"
+            manifestPlaceholders["appLabel"] = appLabel
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -579,6 +609,21 @@ android {
     // out of step with which line actually built. The Live code compiles into both APKs;
     // only the destination is hidden, which keeps `git diff main dev` exactly the gate.
     buildFeatures { compose = true; buildConfig = true }
+
+    // Unit tests run on the JVM, not on a device.
+    //
+    // ⚠ `returnDefaultValues = true` is REQUIRED and not optional: without it, any unit
+    // test that touches an android.* class that is not on the JVM classpath fails with
+    // "Method ... not mocked" rather than with a real answer. The protection tests
+    // deliberately avoid the Android framework where they can -- the mapping, the
+    // policy and the sanitising are all pure Kotlin -- but the persistence test does
+    // touch SharedPreferences, and this is what lets it run.
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -593,4 +638,16 @@ dependencies {
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
+
+    // ---- unit tests ----
+    //
+    // JUnit 4, because the Android Gradle Plugin's `testDebugUnitTest` task runs it
+    // out of the box with no extra configuration, and because the assertions read
+    // the same way as the rest of this project's expectations.
+    testImplementation("junit:junit:4.13.2")
+    // A real org.json implementation for unit tests. Without this, the built-in
+    // android.jar stub throws "Method ... not mocked" for every JSONObject call,
+    // and returnDefaultValues just makes everything read back as 0/null/false --
+    // which silently hides bugs in the diagnostics serialisation.
+    testImplementation("org.json:json:20240303")
 }

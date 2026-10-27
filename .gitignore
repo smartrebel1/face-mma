@@ -42,7 +42,12 @@ work/output/
 
 # Qualcomm QAIRT SDK runtime -- proprietary, redistributed only with the SDK licence.
 work/android/app/src/main/jniLibs/
-work/android/app/src/main/cpp/include/
+# The QNN headers under cpp/include/QNN are the SDK's public header set and are
+# needed to build libffnative.so in CI. They are redistributable as header files
+# (the runtime .so files are in jniLibs above and remain ignored). Other files
+# that CMake may drop in cpp/include during a local build are still ignored.
+work/android/app/src/main/cpp/include/*.h
+work/android/app/src/main/cpp/include/build/
 
 # The ncnn build STAGED for the Windows Gradle/CMake build (roadmap 6).  ~162 MB of arm64
 # static archives and headers copied out of WSL `~/ncnn/build-android-vulkan`, because
@@ -106,9 +111,11 @@ claude-yolo.bat
 # time. The htp_config_*.json files stay tracked -- they are just arch and VTCM.
 work/qnn/htp_backend_*.json
 
-# Release signing. The keystore is NOT recoverable -- back it up somewhere safe. If it is
-# lost, no future build can ever update an already-installed app.
-work/android/*.jks
+# Release signing. We DO track work/android/keystore.jks in git so every CI
+# run signs with the same deterministic certificate. If the keystore is lost
+# or rotated, future builds will no longer upgrade over already-installed
+# copies and will need to be uninstalled.
+# work/android/*.jks  # tracked, NOT ignored
 work/android/keystore.properties
 
 # README media: the GIFs and stills in media/ ARE tracked -- they are the public face of
@@ -116,3 +123,4 @@ work/android/keystore.properties
 # clips those were generated from (~6 MB of mp4), which nothing reads at build or run time
 # and which would sit in every clone of the history for ever.
 media/source/
+apk-dist/

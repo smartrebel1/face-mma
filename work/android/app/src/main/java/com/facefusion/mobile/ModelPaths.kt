@@ -1,6 +1,7 @@
 package com.facefusion.mobile
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 
 /**
@@ -84,15 +85,47 @@ object ModelPaths {
      * path detect faces in a wallpaper needs the answer to survive the restart that changing
      * it wants. "auto" lets the backend decide by checking itself -- see
      * [NativePipe.setNcnnGpu].
+     *
+     * ⚠ MMA v2.2: **On non-Qualcomm chips (MediaTek / Exynos / Kirin / UNISOC — anything
+     * that is NOT Snapdragon), "auto" is FORCED to "cpu" at apply() time.** Mali/PowerVR
+     * Vulkan drivers routinely pass ncnn's fp16 agreement canary but produce subtly-wrong
+     * tensor values at full inference, which shows up as the melted/warped/split-face
+     * artifact you see in screenshots. The fix is simple: always CPU on non-Snapdragon.
+     * This is checked inside apply() so even a user who taps GPU gets CPU — until we have
+     * a reliable agreement test there is no other safe default.
      */
-    fun ncnnGpu(ctx: Context): String =
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_NCNN_GPU, "auto")
-            ?: "auto"
+    fun ncnnGpu(ctx: Context): String {
+        val stored = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_NCNN_GPU, "auto") ?: "auto"
+        return resolveNcnnGpu(stored)
+    }
+
+    /**
+     * Enforce CPU-only on every SoC that is NOT a Qualcomm Snapdragon. Returns the
+     * effective pin. Called from ncnnGpu() (read path) and setNcnnGpu() (write path)
+     * so the enforced value matches what is displayed in Settings.
+     */
+    private fun resolveNcnnGpu(requested: String): String {
+        if (requested == "cpu") return "cpu"
+        if (requested == "gpu" && isQualcomm()) return "gpu"
+        // "auto" or "gpu" on a non-Qualcomm SoC -> CPU.
+        return if (isQualcomm()) requested else "cpu"
+    }
+
+    /** True on Qualcomm Snapdragon SoCs (where the Vulkan backend is known correct). */
+    private fun isQualcomm(): Boolean {
+        val hw = (Build.HARDWARE + " " + Build.BOARD + " " + Build.SOC_MODEL
+                + " " + Build.MANUFACTURER).lowercase()
+        return hw.contains("qcom") || hw.contains("qualcomm") || hw.contains("snapdragon")
+                || hw.contains("sm8") || hw.contains("sm7") || hw.contains("sm6")
+                || hw.contains("sm4") || Build.HARDWARE.equals("qcom", ignoreCase = true)
+    }
 
     /** Pin the ncnn unit. ⚠ The caller must have released the pipeline first. */
     fun setNcnnGpu(ctx: Context, value: String) {
+        val effective = resolveNcnnGpu(value)
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY_NCNN_GPU, value).apply()
+            .edit().putString(KEY_NCNN_GPU, effective).apply()
         apply(ctx)
     }
 
@@ -209,6 +242,30 @@ object ModelPaths {
         chainCache = null
         NativePipe.ensureLoaded()
         NativePipe.setForcedBackend(forcedBackend(ctx))
+        // Thread count for ncnn CPU inference, set BEFORE ncnnInit so the native
+        // pickThreadCount() honours it via FFNCNN_THREADS. Upstream default was 1
+        // thread (memory-safest on budget Mediatek); we scale up on devices with
+        // enough RAM to be worth the extra peak memory without getting OOM-killed.
+        // The CPU path on Dimensity 7xxx with 4 threads on big cores is ~3-4x faster
+        // than 1-thread on a single still, and ~2.5-3x on video.
+        val threads = try {
+            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE)
+                as android.app.ActivityManager
+            val m = am.javaClass.getMethod("getLargeMemoryClass")
+            val lhc = (m.invoke(am) as? Int) ?: am.memoryClass
+            when {
+                lhc < 192 -> 1   // ~1-2 GB large-heap: ultra-safe
+                lhc < 320 -> 2   // ~3-4 GB
+                lhc < 448 -> 3   // ~5-6 GB
+                lhc < 576 -> 4   // ~7 GB
+                lhc < 768 -> 6   // 8 GB V60 Lite / Dimensity 7360: 6 of the 8 cores
+                else -> 8       // ≥10 GB / 12 GB flagships: all 8 cores
+            }
+        } catch (_: Exception) { 2 }
+        // Clamp between 1 and Runtime.availableProcessors() so we never oversubscribe.
+        val cap = try { Runtime.getRuntime().availableProcessors().coerceAtLeast(1) } catch (_: Exception) { 4 }
+        val safeThreads = threads.coerceIn(1, cap)
+        setEnvNative("FFNCNN_THREADS", safeThreads.toString())
         // Before any model is opened, so the first open already knows whether it is allowed
         // to look at the GPU at all. Setting it afterwards would leave the models that the
         // pipeline opened first on the unit this is meant to move them off.
@@ -219,6 +276,26 @@ object ModelPaths {
         // load the rejected tier first, fail its probe, and fall back, paying a full
         // context load on every launch to re-learn something already written down.
         NativePipe.setSkipTiers(rejectedTiers(ctx).joinToString(","))
+    }
+
+    /**
+     * Set an environment variable in the current process before native init.
+     * android.system.Os.setenv() is the public ART bridge to libc setenv()
+     * since API 26 (this app's minSdk is 26). Native ncnnInit reads
+     * FFNCNN_THREADS via getenv() at startup.
+     */
+    private fun setEnvNative(name: String, value: String) {
+        runCatching {
+            val osCls = Class.forName("android.system.Os")
+            val setenv = osCls.getDeclaredMethod(
+                "setenv", String::class.java, String::class.java, Boolean::class.javaPrimitiveType)
+            setenv.invoke(null, name, value, true)
+        }.onFailure {
+            // Fallback: libc's setenv via plain JNI-free approach using
+            // Runtime.exec is useless (it sets env in a child). If the public
+            // API is hidden on a future Android, accept the default thread
+            // count rather than crash.
+        }
     }
 
     /**

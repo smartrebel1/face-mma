@@ -20,6 +20,13 @@ namespace ffqnn {
 bool init(const std::string& backendLib, const std::string& systemLib,
           const std::string& skelDir);
 
+// Tear down the backend so a later init() can try again.  Used when init() succeeds
+// far enough to dlopen the libraries but no on-chip Hexagon HTP is actually present
+// (stub vendor .so on a non-Qualcomm SoC): without this the cached `g_be.ready`
+// would short-circuit every subsequent init attempt and forever report "QNN ready"
+// on a chip that has no DSP.
+void reset();
+
 // A context binary, kept resident.  Loading is the expensive part (76 ms for hyperswap's
 // 196 MB), so models are loaded once and reused across frames.
 using Handle = void*;

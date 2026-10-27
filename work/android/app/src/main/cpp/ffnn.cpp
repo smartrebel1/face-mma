@@ -39,9 +39,25 @@ void ncnnSetGpuPolicy(GpuPolicy);
 void ncnnSetLowMemory(bool);
 #endif
 
+#ifndef FFNN_HAVE_NCNN
+// ⚠ Stub ncnn backend. FF_NCNN is OFF in this CI build because building ncnn from
+// source with the Android NDK needs more CI tooling than we have configured today,
+// and the released ncnn Android binaries are compiled with OpenMP which we cannot
+// statically link without libomp.a on disk. When QNN initialises (all Qualcomm
+// phones) this code path is never taken. When QNN fails (non-Qualcomm chips such as
+// MediaTek/Exynos/UNISOC/Kirin), the failure is reported honestly rather than
+// silently falling through to a nullptr handle that crashes elsewhere.
+bool ncnnInitStub(const InitSpec&) { return false; }
+const char* ncnnLastErrorStub() {
+  return "ncnn CPU backend not included in this build (Qualcomm-Hexagon/QNN only). "
+         "Non-Qualcomm devices are not supported in this release.";
+}
+#endif
+
 namespace {
 Backend g_active = Backend::Qnn;
 bool g_ready = false;
+}
 
 // ---------------------------------------------------------------------------
 // A handle remembers WHICH BACKEND OPENED IT.
@@ -59,7 +75,6 @@ struct HandleRec {
   Backend backend;
   Handle inner;
 };
-}  // namespace
 
 bool init(Backend b, const InitSpec& spec) {
   // Auto is the honest form of the question. Whether the HTP is usable cannot be known
@@ -184,7 +199,7 @@ const char* lastError() {
 #ifdef FFNN_HAVE_NCNN
     case Backend::Ncnn: return ncnnLastError();
 #else
-    case Backend::Ncnn: return "ncnn backend not built";
+    case Backend::Ncnn: return ncnnLastErrorStub();
 #endif
     case Backend::Auto: return "no backend started";
   }

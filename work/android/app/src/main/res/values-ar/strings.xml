@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Arabic strings for Face MMA.
+
+  Only the strings this locale adds are here. Everything else falls back to
+  res/values/strings.xml, which is how the other locales (ru, zh-CN, zh-TW) are
+  written too - one English source of truth, one translation per locale, and no
+  duplicated copies of the sentences that have not changed.
+
+  The protection control and the responsible-use notice are the reason this file
+  exists at all: they are the two places where a mistranslation changes what the
+  app PROMISES, rather than only how it looks.
+
+  ⚠ The two endpoint labels must not be swapped. "Least sensitive" is the LOW end
+  of the dial and "Most sensitive" is the HIGH end, and the order they appear in
+  is checked by a test - a translation that puts them the wrong way round would
+  make the slider invert itself for every Arabic reader.
+
+  ⚠ gate_blocked (a mandatory refusal) and gate_blocked_adjustable (a refusal the
+  sensitivity setting caused) must stay distinguishable. Collapsing them would
+  tell an Arabic reader that a rule they cannot change is something they could
+  have changed by moving a slider.
+-->
+<resources>
+
+    <!-- ==================================================== content gate -->
+    <string name="gate_subject_source_image">الصورة المصدر</string>
+    <string name="gate_subject_target_image">الصورة الهدف</string>
+    <string name="gate_subject_target_video">الفيديو الهدف</string>
+    <string name="gate_subject_this_frame">هذا الإطار</string>
+    <string name="gate_subject_driver_video">فيديو الحرك</string>
+    <string name="gate_blocked">المحتوى الصريح غير مسموح به في %1$s</string>
+    <string name="gate_blocked_generic">المحتوى الصريح غير مسموح به</string>
+    <string name="gate_error">تعذّر تشغيل فحص المحتوى على %1$s، لذلك لا يمكن معالجته</string>
+    <string name="gate_error_detail">%1$s (%2$s)</string>
+    <!-- A refusal the SENSITIVITY setting caused. ⚠ Must stay different from
+         gate_blocked, which is a mandatory refusal. -->
+    <string name="gate_blocked_adjustable">يبدو %1$s صريحًا أكثر من اللازم بالنسبة لحساسية الحماية الحالية. يمكنك رفع إعداد الحساسية، لكن الفحوص الإلزامية تبقى سارية في كل الأحوال.</string>
+
+    <!-- ==================================================== protection control -->
+    <string name="guard_title">حساسية الحماية</string>
+    <string name="guard_summary">مدى تشدُّد فحص المحتوى في رفض المادة التي ليس متأكدًا منها.</string>
+    <string name="guard_value">%1$d</string>
+    <!-- The LOW end of the dial. -->
+    <string name="guard_end_low">الأقل حساسية</string>
+    <!-- The HIGH end of the dial. -->
+    <string name="guard_end_high">الأعلى حساسية</string>
+    <string name="guard_slider_cd">حساسية الحماية، %1$d من 100</string>
+    <string name="guard_note">هذا يرفع أو يخفض عتبة واحدة فقط: كم يجب أن ترتفع درجة المحتوى قبل أن يرفضه الفحص. لا يوقف الفحص أبدًا، ولا يُضعِف القواعد الإلزامية، ولا يلغي موافقتك.</string>
+    <string name="guard_note_adjustable">قابل للتعديل: عتبة درجة المحتوى، ونسبة الفيديو المحجوب المسموحة.</string>
+    <string name="guard_note_mandatory">غير قابل للتعديل: فحص المحتوى نفسه، وقاعدة أن الفحص الفاشل يرفض المادة، ونسبة الفيديو المحجوب المسموحة، وإقرار الموافقة، وكل قواعد الاستخدام المحظور.</string>
+
+    <!-- ==================================================== NSFW mode -->
+    <string name="nsfw_mode_title">وضع المحتوى الإباحي</string>
+    <string name="nsfw_mode_summary">ما إذا كان التطبيق مسموحًا له بمعالجة محتوى إباحي تملك حق معالجته.</string>
+    <string name="nsfw_mode_off">إيقاف</string>
+    <string name="nsfw_mode_on">تشغيل</string>
+    <string name="nsfw_mode_cd">وضع المحتوى الإباحي، %1$s</string>
+    <string name="nsfw_mode_off_note">يرفض فحص المحتوى كل ما يصنّفه. ومؤشر الحساسية لا يزيده إلا تشددًا.</string>
+    <string name="nsfw_mode_on_note">لا يزال فحص المحتوى يعمل في كل المسارات، ولا يزال يرفض كل ما يطمئن النموذج إلى أنه صريح. لكنه يرفض أقل مما لا يطمئن النموذج بشأنه، فالمحتوى الإباحي الذي تملك حق معالجته لا يُرفض.</string>
+    <string name="nsfw_mode_rules">لا يوقف التشغيل فحص المحتوى، ولا يجعل الفحص الفاشل يمر، ولا يغيّر قواعد الموافقة ولا قواعد التعامل مع أشخاص حقيقيين ولا قواعد حماية القاصرين. واستخدامه على مادة لا تملك حق معالجتها غير مسموح، وأنت مسؤول عن ذلك.</string>
+    <string name="nsfw_mode_responsibility">أنت مسؤول عن امتلاكك حق معالجة المادة، وعن القانون في بلدك.</string>
+    <string name="nsfw_mode_threshold">العتبة السارية: %1$s</string>
+    <string name="guard_threshold_now">العتبة الحالية: %1$s</string>
+    <string name="guard_reset">إعادة الضبط إلى الافتراضي</string>
+    <string name="guard_reset_done">أُعيد ضبط الحساسية إلى الافتراضي</string>
+
+    <!-- ==================================================== safety notice -->
+    <string name="safety_title">استخدمه بمسؤولية</string>
+    <string name="safety_body">يجب أن يحترم تعديل الوجوه الموافقة والخصوصية والقانون.\n\n• استخدم وسائطك الخاصة فقط، أو وسائط تملك صلاحية تعديلها صراحةً.\n• لا تنشئ أو تطلب أو تشارك أو تنشر صورًا أو مقاطع حميمية أو جنسية لشخص حقيقي دون موافقته الصريحة.\n• لا تستخدم الوسائط المعدَّلة لانتحال شخصية أو مضايقة أو احتيال أو تهديد أو تضليل أي شخص.\n• اتبع القانون المحلي وشروط الترخيص الخاصة بالتطبيق ونماذجه.\n• أنت مسؤول عن استخدامك لهذا التطبيق. هذا التنبيه لا يلغي أي التزام قانوني، ولا يجعل الاستخدام المحظور مقبولًا.</string>
+    <string name="safety_agree">أوافق وأتابع</string>
+    <string name="safety_exit">خروج</string>
+    <string name="safety_acknowledged">تم القبول في %1$s</string>
+    <string name="safety_acknowledged_never">لم يتم القبول بعد</string>
+    <string name="safety_mandatory_note">لا يمكن إيقاف هذا التنبيه من داخل التطبيق. إنه شرط لاستخدامه.</string>
+    <string name="safety_privacy_body">تتم المعالجة على هذا الجهاز. لا تُرفع صورك أو مقاطعك أبدًا. تُنزَّل ملفات النماذج بشكل منفصل، ويطلب التطبيق الإذن قبل التنزيل على اتصال محدود البيانات.</string>
+
+    <!-- ==================================================== false-rejection diagnostics -->
+    <string name="guard_diag_title">سجل الرفض</string>
+    <string name="guard_diag_summary">%1$s</string>
+    <string name="guard_diag_empty">لم يُسجَّل أي رفض.</string>
+    <string name="guard_diag_clear">مسح السجل</string>
+    <string name="guard_diag_cleared">تم مسح سجل الرفض</string>
+    <string name="guard_diag_share">مشاركة السجل</string>
+    <string name="guard_diag_body">يسجّل التطبيق أي قاعدة رفضت الطلب وما كانت الأرقام، حتى يمكن التحقيق في الإيجابيات الكاذبة وتصحيحها. لا يسجّل سوى معرّفات القواعد والدرجات والعتبات — ولا يسجّل صورك أو مقاطعك أو أسماء ملفاتك أو بياناتك الحيوية أبدًا.</string>
+    <string name="guard_diag_row">%1$s · %2$s</string>
+
+    <!-- ==================================================== settings tabs -->
+    <string name="set_tab_protection">الحماية</string>
+
+    <!-- ==================================================== assign-per-person (MMA Arabic) -->
+    <string name="live_assign_title">تعيين لكل شخص</string>
+    <string name="live_assign_hint">تعيين لكل شخص: اختر مصدرًا ثم اضغط على وجه. الوجوه التي لا تضغط عليها تبقى على مصدرها.</string>
+    <string name="swap_assign_on">لا شيء يتغير حتى تضغط على شخص</string>
+    <string name="swap_assign_off">كل وجه يأخذ المصدر المختار</string>
+    <string name="swap_assign_hint">اختر مصدرًا (أو احتفاظ بالوجه الأصلي)، ثم اضغط على شخص بالأسفل. الأشخاص الذين لا تضغط عليهم يأخذون المصدر الذي كان محددًا عند التشغيل.</string>
+    <string name="set_tab_models">النماذج</string>
+    <string name="set_tab_device">الجهاز</string>
+    <string name="set_tab_api">واجهة API</string>
+    <string name="set_tab_about">عن التطبيق</string>
+
+    <!-- ==================================================== navigation -->
+    <string name="nav_swap">تبديل</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="nav_live">مباشر</string>
+
+    <!-- ==================================================== swap screen (MMA Face) -->
+    <string name="swap_source_face">الوجه المصدر</string>
+    <string name="swap_source_pick">اختيار وجه مصدر</string>
+    <string name="swap_pane_original">الأصلي</string>
+    <string name="swap_pane_target">الهدف</string>
+    <string name="swap_pane_swapped">بعد التبديل</string>
+    <string name="swap_reading_video">جاري قراءة الفيديو…</string>
+    <string name="swap_seeking">جاري التنقل…</string>
+    <string name="swap_add_target">إضافة صورة/فيديو هدف</string>
+    <string name="swap_choose_another_target">اختيار هدف آخر</string>
+    <string name="swap_remove_target">إزالة الهدف</string>
+    <string name="swap_remove_source">إزالة الوجه المصدر</string>
+    <string name="swap_add_another_face">إضافة وجه آخر (تبديل متعدد)</string>
+    <string name="swap_capture_photo">التقاط صورة</string>
+    <string name="swap_capture_video">تسجيل فيديو</string>
+    <string name="swap_loading_models">جاري تحميل النماذج، يستغرق ذلك بضع ثوانٍ…</string>
+    <string name="swap_swapping_frame">جاري تبديل هذا الإطار…</string>
+    <string name="swap_pick_a_source">اختر وجهًا مصدرًا</string>
+    <string name="swap_preparing_preview">جاري تجهيز المعاينة…</string>
+    <string name="swap_processors">المعالجات</string>
+    <string name="swap_proc_swapper">تبديل_الوجه</string>
+    <string name="swap_proc_enhancer">تحسين_الوجه</string>
+    <string name="swap_proc_lip_syncer">مزامنة_الشفاه</string>
+    <string name="swap_action">تبديل</string>
+    <string name="swap_cancel">إلغاء</string>
+    <string name="swap_progress">الإطار %1$d / %2$d   %3$s إطار/ث   متبقي %4$d ث</string>
+    <string name="swap_save_to_gallery">حفظ في المعرض</string>
+    <string name="swap_saved_to_gallery">تم الحفظ في المعرض</string>
+    <string name="swap_share">مشاركة</string>
+    <string name="swap_share_bug_report">مشاركة تقرير الخطأ</string>
+    <string name="swap_advanced">خيارات متقدمة</string>
+    <string name="swap_reset_defaults">إعادة الافتراضيات</string>
+    <string name="swap_close">إغلاق</string>
+    <string name="swap_defaults">إعدادات MMA الافتراضية</string>
+
+    <!-- ==================================================== output pane -->
+    <string name="out_output">الناتج</string>
+    <string name="out_output_partial">الناتج (جزئي)</string>
+    <string name="out_save_frame">حفظ الإطار</string>
+    <string name="out_play">تشغيل</string>
+    <string name="out_pause">إيقاف مؤقت</string>
+    <string name="out_log">السجل</string>
+    <string name="out_expand">توسيع</string>
+    <string name="out_collapse">طيّ</string>
+    <string name="out_delete">حذف الناتج</string>
+    <string name="out_delete_title">هل تريد حذف هذا الناتج؟</string>
+    <string name="out_delete_body">سيتم حذف الملف المُنتَج من الهاتف. أي شيء تم حفظه مسبقًا في المعرض سيبقى.</string>
+
+    <!-- ==================================================== download overlay -->
+    <string name="dl_models_required">النماذج مطلوبة</string>
+    <string name="dl_not_on_device">نماذج الوجوه غير موجودة على هذا الهاتف بعد.</string>
+    <string name="dl_download">تحميل النماذج</string>
+    <string name="dl_retry">إعادة المحاولة</string>
+    <string name="dl_progress">%1$d / %2$d ميجا   الملف %3$d من %4$d</string>
+    <string name="dl_metered_title">تحميل عبر بيانات الهاتف؟</string>
+    <string name="dl_metered_body">حجم النماذج حوالي 275 ميجابايت. يبدو أنك على اتصال محدود، لذا قد يستهلك ذلك من رصيد بياناتك.</string>
+    <string name="dl_metered_confirm">تحميل على أي حال</string>
+    <string name="dl_metered_wait">انتظار Wi‑Fi</string>
+    <string name="set_not_installed">غير مثبت</string>
+    <string name="set_required_suffix">(مطلوب)</string>
+    <string name="set_update_available">تحديث متاح</string>
+
+    <!-- ==================================================== common -->
+    <string name="common_cancel">إلغاء</string>
+    <string name="common_delete">حذف</string>
+    <string name="common_expand">توسيع</string>
+    <string name="common_collapse">طيّ</string>
+
+    <!-- ==================================================== settings labels -->
+    <string name="set_unit">معالج الرسوميات</string>
+    <string name="set_unit_note">بعض الهواتف تحسب هذه النماذج بشكل خاطئ على وحدة معالجة الرسوميات، فيجد التطبيق وجوهًا في الحوائط والأثاث ويبدّلها. يقوم الوضع التلقائي بفحص وحدة معالجة الرسوميات في هذا الهاتف مقابل المعالج المركزي (CPU) مرة واحدة، وينتقل إلى المعالج المركزي إذا اختلفا. اختر المعالج المركزي يدويًا إذا كانت النتيجة لا تزال خاطئة: هو أبطأ لكنه يعمل دائمًا.</string>
+    <string name="set_unit_auto">تلقائي</string>
+    <string name="set_unit_gpu">GPU</string>
+    <string name="set_unit_cpu">CPU</string>
+    <string name="set_lowmem">ذاكرة منخفضة</string>
+    <string name="set_models_source">التحميل من</string>
+    <string name="set_lowmem_note">يبني النماذج بطريقة تحتاج حوالي نصف الذاكرة وأبطأ بثلاث مرات. يُشغَّل تلقائيًا على الهواتف التي تقل راماتها عن 5 جيجابايت، حيث أن الحجم الكامل يجعل النظام يغلق التطبيق.</string>
+    <string name="opt_weight">القوة</string>
+    <string name="opt_blur">نعومة الحواف</string>
+    <string name="opt_pixel_boost">دقة أعلى</string>
+    <string name="opt_model">النموذج</string>
+    <string name="opt_face_swapper">مبدّل الوجوه</string>
+    <string name="opt_face_masker">قناع الوجه</string>
+    <string name="status_running">جاري المعالجة…</string>
+
+    <!-- ==================================================== model manager (MMA addition) -->
+    <string name="mma_model_repair">إصلاح / إعادة تحميل</string>
+    <string name="mma_model_all_ok">كل النماذج سليمة وموجودة.</string>
+    <string name="mma_model_missing_summary">%1$d ملف ناقص أو تالف، اضغط إصلاح.</string>
+    <string name="mma_fix_dialog_title">إصلاح النماذج</string>
+    <string name="mma_fix_dialog_body">سيتم إعادة تحميل الملفات الناقصة أو التالفة فقط، ولن يتم لمس الملفات السليمة. هذا لا يحذف أي إعدادات.</string>
+
+</resources>

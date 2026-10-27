@@ -10,9 +10,18 @@ package com.facefusion.mobile
 object NativePipe {
 
     @Volatile private var loaded = false
+    @Volatile private var filesDir: String? = null
+
+    /** Call once, with the application context, so any future helpers land on disk. */
+    fun setFilesDir(path: String) { filesDir = path }
 
     fun ensureLoaded() {
-        if (!loaded) { System.loadLibrary("ffnative"); loaded = true }
+        if (!loaded) {
+            // Ship the prebuilt upstream libffnative.so (proven to run on
+            // Qualcomm + MediaTek). Pure-Kotlin additions only.
+            System.loadLibrary("ffnative")
+            loaded = true
+        }
     }
 
     /**
@@ -278,6 +287,34 @@ object NativePipe {
      * test `isNaN()` explicitly -- see [ContentGate].
      */
     @JvmStatic external fun contentScore(bgr: ByteArray, w: Int, h: Int): Float
+
+    /**
+     * The content gate's threshold, pushed down to the native pipeline.
+     *
+     * ⚠ WHY THIS EXISTS. The native pipeline keeps its own copy of the gate
+     * threshold (`ffpipe::Config::nsfwThreshold`) and uses it in ONE place:
+     * `checkContent` sets the pipeline's `gateCleared` flag when the score is under
+     * it, and `swapAll`, `editFaces`, `enhance` and `animate` all REFUSE to touch a
+     * frame on a pipeline whose flag is not set. So the native value is not a second
+     * policy -- it is the FLOOR the native invariant is measured against.
+     *
+     * ⚠ It used to stay at its 0.25 default forever, because `updateConfig` did not
+     * copy it and nothing ever set it. The consequence was that the Kotlin
+     * sensitivity slider could only ever TIGHTEN the gate: at a sensitivity of 1.0
+     * the Kotlin threshold was 0.10, but a score of 0.20 was still refused here.
+     *
+     * ⚠ Kotlin owns the POLICY -- the sampling rate, the video flagged-rate rule, the
+     * refusal wording and the NaN-is-not-permission rule. This call pushes the
+     * floor so that the two agree; it does not replace the policy.
+     *
+     * ⚠ A non-finite threshold is REFUSED by the native side and returns false. A
+     * NaN threshold makes every comparison false, which would make the pipeline
+     * consider itself clear unconditionally -- a gate that fails OPEN.
+     *
+     * ⚠ False only means "no pipeline is loaded". The value is stored either way,
+     * so a later init picks it up.
+     */
+    @JvmStatic external fun setNsfwThreshold(threshold: Float): Boolean
 
     /**
      * The faces in one BGR frame, as boxes: **five floats each** -- x0, y0, x1, y1, score,

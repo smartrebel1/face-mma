@@ -38,24 +38,23 @@ if(FF_NCNN)
     endif()
     target_sources(ffnative PRIVATE ffnn_ncnn.cpp)
     target_compile_definitions(ffnative PRIVATE FFNN_HAVE_NCNN)
-    target_include_directories(ffnative PRIVATE "${NCNN_DIR}/include")
-    # ORDER MATTERS: libncnn.a references glslang, so glslang follows it. A static link
-    # resolves left to right and reversing these produces undefined glslang symbols.
-    target_link_libraries(ffnative
-        "${NCNN_DIR}/lib/libncnn.a"
-        "${NCNN_DIR}/lib/libglslang.a"
-        "${NCNN_DIR}/lib/libMachineIndependent.a"
-        "${NCNN_DIR}/lib/libGenericCodeGen.a"
-        "${NCNN_DIR}/lib/libOSDependent.a"
-        "${NCNN_DIR}/lib/libSPIRV.a")
-    # ncnn is built NCNN_OPENMP=ON, so its archive carries unresolved `__kmpc_*` symbols;
-    # -static-openmp links libomp into this .so rather than expecting one on the device,
-    # where there is none. The same two flags the headless CLI uses (work/native/build_cli.sh).
-    # -landroid is for ncnn's DataReaderFromAndroidAsset, which libncnn.a always contains
-    # even though nothing here calls it.
-    #
-    # NCNN_SIMPLEVK=ON, so ncnn dlopen's the Vulkan loader itself: no -lvulkan, and a device
-    # with no Vulkan fails at get_gpu_count() rather than at load.
-    target_link_options(ffnative PRIVATE -fopenmp -static-openmp)
+    # ncnn installs headers to <prefix>/include/ncnn/*.h. Add BOTH locations so
+    # `#include "net.h"` (ffnn_ncnn.cpp) and `#include "ncnn/platform.h"` (ncnn's
+    # own internal includes) both resolve.
+    target_include_directories(ffnative PRIVATE "${NCNN_DIR}/include" "${NCNN_DIR}/include/ncnn")
+    # libncnn first. Vulkan glslang archives only exist when ncnn was built with
+    # NCNN_VULKAN=ON; skip them for the CPU build.
+    target_link_libraries(ffnative "${NCNN_DIR}/lib/libncnn.a")
+    foreach(_gllib IN ITEMS MachineIndependent GenericCodeGen OSDependent SPIRV glslang)
+        if(EXISTS "${NCNN_DIR}/lib/lib${_gllib}.a")
+            target_link_libraries(ffnative "${NCNN_DIR}/lib/lib${_gllib}.a")
+        endif()
+    endforeach()
+    # OpenMP: libncnn.a built with NCNN_OPENMP=ON carries __kmpc_* symbols; if we
+    # chose NCNN_OPENMP=OFF (as we do in CI) there is no such dependency and libomp.a
+    # may be absent. Link it only when present.
+    if(EXISTS "${NCNN_DIR}/lib/libomp.a")
+        target_link_libraries(ffnative "${NCNN_DIR}/lib/libomp.a")
+    endif()
     target_link_libraries(ffnative android)
 endif()
