@@ -4682,7 +4682,7 @@ class MainActivity : ComponentActivity() {
             // locking the screen or switching apps does not get a multi-minute Dimensity
             // video swap killed. (Photo swaps are seconds but showing the same progress
             // notification feels consistent.)
-            val swapKind = if (imageTarget) "photo" else "video"
+            val swapKind = if (targetImage != null) "photo" else "video"
             SwapStatus.begin(swapKind)
             SwapService.start(this@MainActivity)
             val result = withContext(Dispatchers.Default) {
