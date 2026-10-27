@@ -2,8 +2,6 @@ package com.facefusion.mobile.webcam
 
 import android.content.Context
 import android.graphics.Bitmap
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
@@ -120,31 +118,6 @@ data class PlaylistItem(
 
     val durationLabel: String
         get() = formatDuration(durationMs)
-
-    fun toJson(): JSONObject = JSONObject().apply {
-        put("id", id)
-        put("uriString", uriString)
-        put("displayName", displayName)
-        put("durationMs", durationMs)
-        put("width", width)
-        put("height", height)
-        put("mimeType", mimeType)
-        put("addedAt", addedAt)
-    }
-
-    companion object {
-        fun fromJson(obj: JSONObject): PlaylistItem = PlaylistItem(
-            id = obj.optString("id", UUID.randomUUID().toString()),
-            uriString = obj.optString("uriString", ""),
-            displayName = obj.optString("displayName", "video.mp4"),
-            durationMs = obj.optLong("durationMs", 0L),
-            width = obj.optInt("width", 0),
-            height = obj.optInt("height", 0),
-            mimeType = obj.optString("mimeType", "video/mp4"),
-            addedAt = obj.optLong("addedAt", 0L),
-            thumbnail = null,
-        )
-    }
 }
 
 /**
@@ -220,38 +193,88 @@ data class WebcamSettings(
 }
 
 /**
- * Pure, testable playlist state operations and JSON persistence.
+ * Pure Kotlin JSON helper & Playlist state manager (avoids android.jar stubbed org.json in unit tests).
  */
 object PlaylistStorage {
-    private const val PLAYLIST_FILE = "webcam_playlist_v1.json"
+    private const val PLAYLIST_FILE = "webcam_playlist_v1.dat"
 
-    fun serialize(items: List<PlaylistItem>, activeIndex: Int = 0): String {
-        val root = JSONObject()
-        root.put("version", 1)
-        root.put("activeIndex", activeIndex)
-        val arr = JSONArray()
-        for (item in items) {
-            arr.put(item.toJson())
+    private fun esc(s: String): String =
+        s.replace("\\", "\\\\")
+            .replace("\t", "\\t")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+
+    private fun unesc(s: String): String {
+        val out = StringBuilder(s.length)
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (val n = s[i + 1]) {
+                    '\\' -> out.append('\\')
+                    't' -> out.append('\t')
+                    'n' -> out.append('\n')
+                    'r' -> out.append('\r')
+                    else -> out.append(n)
+                }
+                i += 2
+            } else {
+                out.append(c)
+                i++
+            }
         }
-        root.put("items", arr)
-        return root.toString()
+        return out.toString()
     }
 
-    fun deserialize(json: String): Pair<List<PlaylistItem>, Int> {
-        if (json.isBlank()) return emptyList<PlaylistItem>() to 0
+    fun serialize(items: List<PlaylistItem>, activeIndex: Int = 0): String {
+        val sb = StringBuilder()
+        sb.append("ACTIVE\t").append(activeIndex).append('\n')
+        for (item in items) {
+            sb.append("ITEM\t")
+                .append(esc(item.id)).append('\t')
+                .append(esc(item.uriString)).append('\t')
+                .append(esc(item.displayName)).append('\t')
+                .append(item.durationMs).append('\t')
+                .append(item.width).append('\t')
+                .append(item.height).append('\t')
+                .append(esc(item.mimeType)).append('\t')
+                .append(item.addedAt).append('\n')
+        }
+        return sb.toString()
+    }
+
+    fun deserialize(raw: String): Pair<List<PlaylistItem>, Int> {
+        if (raw.isBlank()) return emptyList<PlaylistItem>() to 0
         return runCatching {
-            val root = JSONObject(json)
-            val arr = root.optJSONArray("items") ?: JSONArray()
-            val list = ArrayList<PlaylistItem>(arr.length())
-            for (i in 0 until arr.length()) {
-                val obj = arr.optJSONObject(i) ?: continue
-                val item = PlaylistItem.fromJson(obj)
-                if (item.uriString.isNotBlank()) {
-                    list.add(item)
+            var activeIdx = 0
+            val list = ArrayList<PlaylistItem>()
+            for (line in raw.lineSequence()) {
+                if (line.isBlank()) continue
+                val parts = line.split('\t')
+                when (parts.firstOrNull()) {
+                    "ACTIVE" -> activeIdx = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    "ITEM" -> if (parts.size >= 9) {
+                        val uri = unesc(parts[2])
+                        if (uri.isNotBlank()) {
+                            list.add(
+                                PlaylistItem(
+                                    id = unesc(parts[1]).ifBlank { UUID.randomUUID().toString() },
+                                    uriString = uri,
+                                    displayName = unesc(parts[3]).ifBlank { "video.mp4" },
+                                    durationMs = parts[4].toLongOrNull() ?: 0L,
+                                    width = parts[5].toIntOrNull() ?: 0,
+                                    height = parts[6].toIntOrNull() ?: 0,
+                                    mimeType = unesc(parts[7]).ifBlank { "video/mp4" },
+                                    addedAt = parts[8].toLongOrNull() ?: 0L,
+                                    thumbnail = null,
+                                )
+                            )
+                        }
+                    }
                 }
             }
-            val active = if (list.isEmpty()) 0 else root.optInt("activeIndex", 0).coerceIn(0, list.lastIndex)
-            list to active
+            val clamped = if (list.isEmpty()) 0 else activeIdx.coerceIn(0, list.lastIndex)
+            list to clamped
         }.getOrElse { emptyList<PlaylistItem>() to 0 }
     }
 

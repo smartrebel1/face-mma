@@ -579,6 +579,9 @@ android {
     // out of step with which line actually built. The Live code compiles into both APKs;
     // only the destination is hidden, which keeps `git diff main dev` exactly the gate.
     buildFeatures { compose = true; buildConfig = true }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -597,5 +600,4 @@ dependencies {
     implementation("androidx.media3:media3-common:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.json:json:20231013")
 }

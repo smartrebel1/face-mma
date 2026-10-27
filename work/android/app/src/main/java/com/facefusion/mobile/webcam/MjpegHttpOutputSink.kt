@@ -1,7 +1,6 @@
 package com.facefusion.mobile.webcam
 
 import android.graphics.Bitmap
-import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -219,7 +218,7 @@ class MjpegHttpOutputSink(
                 if (cmd.isNotBlank()) {
                     onRemoteCommand?.invoke(cmd)
                 }
-                val resp = JSONObject().put("ok", true).put("cmd", cmd).toString().toByteArray()
+                val resp = buildJson(mapOf("ok" to true, "cmd" to cmd)).toByteArray(Charsets.UTF_8)
                 writeHttpResponse(output, 200, "application/json; charset=utf-8", resp)
             }
             path == "/" || path == "/player" || path == "/index.html" -> {
@@ -227,7 +226,7 @@ class MjpegHttpOutputSink(
                 writeHttpResponse(output, 200, "text/html; charset=utf-8", html)
             }
             else -> {
-                val err = JSONObject().put("error", "Not found: $path").toString().toByteArray()
+                val err = buildJson(mapOf("error" to "Not found: $path")).toByteArray(Charsets.UTF_8)
                 writeHttpResponse(output, 404, "application/json; charset=utf-8", err)
             }
         }
@@ -292,18 +291,30 @@ class MjpegHttpOutputSink(
     }
 
     private fun serveStatus(out: OutputStream) {
-        val json = JSONObject().apply {
-            put("running", running.get())
-            put("sink", type.code)
-            put("port", boundPort)
-            put("streamUrl", endpointUrl)
-            put("playerUrl", playerUrl)
-            put("connectedClients", connectedClients)
-            put("framesDispatched", framesDispatched)
-            put("bytesDispatched", bytesDispatched)
-            statusProvider?.invoke()?.forEach { (k, v) -> put(k, v) }
+        val map = LinkedHashMap<String, Any?>()
+        map["running"] = running.get()
+        map["sink"] = type.code
+        map["port"] = boundPort
+        map["streamUrl"] = endpointUrl
+        map["playerUrl"] = playerUrl
+        map["connectedClients"] = connectedClients
+        map["framesDispatched"] = framesDispatched
+        map["bytesDispatched"] = bytesDispatched
+        statusProvider?.invoke()?.forEach { (k, v) -> map[k] = v }
+        writeHttpResponse(out, 200, "application/json; charset=utf-8", buildJson(map).toByteArray(Charsets.UTF_8))
+    }
+
+    private fun buildJson(entries: Map<String, Any?>): String {
+        fun esc(s: String): String =
+            s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ")
+        return entries.entries.joinToString(",", "{", "}") { (k, v) ->
+            val vStr = when (v) {
+                null -> "null"
+                is Number, is Boolean -> v.toString()
+                else -> "\"${esc(v.toString())}\""
+            }
+            "\"${esc(k)}\":$vStr"
         }
-        writeHttpResponse(out, 200, "application/json; charset=utf-8", json.toString().toByteArray(Charsets.UTF_8))
     }
 
     private fun writeHttpResponse(out: OutputStream, code: Int, contentType: String, body: ByteArray) {

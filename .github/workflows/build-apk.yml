@@ -49,17 +49,35 @@ jobs:
           echo "Staged native libraries:"
           ls -lh "$RUNNER_TEMP/face-mma-native/arm64-v8a"
 
-      - name: Run unit tests
-        working-directory: work/android
-        run: |
-          chmod +x ./gradlew
-          ./gradlew --no-daemon :app:testDebugUnitTest -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native"
-
       - name: Build debug APK
         working-directory: work/android
+        shell: bash
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleDebug -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native"
+          set +e
+          ./gradlew --no-daemon :app:assembleDebug -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native" 2>&1 | tee "$RUNNER_TEMP/assemble.log"
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ]; then
+            grep -E 'e: |FAILURE:|What went wrong|Caused by:|Execution failed' "$RUNNER_TEMP/assemble.log" | head -n 25 | while IFS= read -r line; do
+              echo "::error title=AssembleDebug::${line}"
+            done
+            exit $rc
+          fi
+
+      - name: Run unit tests
+        working-directory: work/android
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          set +e
+          ./gradlew --no-daemon :app:testDebugUnitTest -PprebuiltNativeDir="$RUNNER_TEMP/face-mma-native" --info 2>&1 | tee "$RUNNER_TEMP/test.log"
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ]; then
+            grep -E 'FAILED|Exception|AssertionError|e: |What went wrong|Caused by:' "$RUNNER_TEMP/test.log" | head -n 25 | while IFS= read -r line; do
+              echo "::error title=UnitTest::${line}"
+            done
+            exit $rc
+          fi
 
       - name: Find and verify APK
         run: |
