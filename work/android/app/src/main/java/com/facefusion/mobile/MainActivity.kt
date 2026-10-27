@@ -2382,7 +2382,7 @@ class MainActivity : ComponentActivity() {
             val ratio = Rational(w, h).let { r ->
                 if (r.toFloat() in 0.42f..2.38f) r else Rational(9, 16)
             }
-            wc.setCleanStageFullscreen(true)
+            wc.updateCleanStageFullscreen(true)
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(ratio)
                 .build()

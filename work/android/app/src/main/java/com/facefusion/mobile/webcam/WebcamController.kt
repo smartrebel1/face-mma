@@ -563,7 +563,7 @@ class WebcamController(
         updateSettings(settings.copy(mirrorMode = !settings.mirrorMode))
     }
 
-    fun setCleanStageFullscreen(enabled: Boolean) {
+    fun updateCleanStageFullscreen(enabled: Boolean) {
         cleanStageFullscreen = enabled
     }
 
@@ -588,8 +588,8 @@ class WebcamController(
 
         if (outputEnabled && sinkChanged) {
             // Restart output sink cleanly with the updated configuration
-            setOutputEnabled(false)
-            setOutputEnabled(true)
+            applyOutputEnabled(false)
+            applyOutputEnabled(true)
         }
     }
 
@@ -604,13 +604,13 @@ class WebcamController(
     // ------------------------------------------------------------------ Live Output Engine (ON / OFF)
 
     fun toggleOutput() {
-        setOutputEnabled(!outputEnabled)
+        applyOutputEnabled(!outputEnabled)
     }
 
     /**
      * Genuinely activates or deactivates the live video output pipeline and foreground service.
      */
-    fun setOutputEnabled(enabled: Boolean) {
+    fun applyOutputEnabled(enabled: Boolean) {
         if (enabled == outputEnabled) return
         errorMessage = null
 
@@ -779,7 +779,7 @@ class WebcamController(
                 }
                 setAspectRatio(nextAspect)
             }
-            "off" -> setOutputEnabled(false)
+            "off" -> applyOutputEnabled(false)
         }
     }
 
@@ -810,7 +810,7 @@ class WebcamController(
     }
 
     fun release() {
-        setOutputEnabled(false)
+        applyOutputEnabled(false)
         progressPollJob?.cancel()
         boundTextureView = null
         player?.release()

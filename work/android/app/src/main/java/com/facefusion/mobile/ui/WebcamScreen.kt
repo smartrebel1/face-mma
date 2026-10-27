@@ -219,7 +219,7 @@ fun WebcamScreen(
             CleanBroadcastStageDialog(
                 controller = controller,
                 ar = ar,
-                onExit = { controller.setCleanStageFullscreen(false) },
+                onExit = { controller.updateCleanStageFullscreen(false) },
             )
         }
 
@@ -501,7 +501,7 @@ private fun OutputMasterCard(
                                 }
                             } else {
                                 Button(
-                                    onClick = { controller.setCleanStageFullscreen(true) },
+                                    onClick = { controller.updateCleanStageFullscreen(true) },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = StudioCyan, contentColor = Color.Black),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
@@ -538,7 +538,7 @@ private fun OutputMasterCard(
                         )
                     }
                     OutlinedButton(
-                        onClick = { controller.setCleanStageFullscreen(true) },
+                        onClick = { controller.updateCleanStageFullscreen(true) },
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         Text(if (ar) "شاشة نظيفة" else "Clean Stage", fontSize = 11.sp)
@@ -731,7 +731,7 @@ private fun PreviewStageCard(
                         )
                     }
                     IconButton(
-                        onClick = { controller.setCleanStageFullscreen(true) },
+                        onClick = { controller.updateCleanStageFullscreen(true) },
                         modifier = Modifier.size(30.dp),
                     ) {
                         Icon(
