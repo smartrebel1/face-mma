@@ -1,5 +1,7 @@
 package com.scan.app.ui
 
+import android.annotation.SuppressLint
+
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -249,6 +251,7 @@ fun HistoryDetailScreen(id: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
     }
 }
 
+@SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 private fun Screenshot(path: String?) {
     val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, path) {

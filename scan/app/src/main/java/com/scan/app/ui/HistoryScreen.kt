@@ -1,5 +1,7 @@
 package com.scan.app.ui
 
+import android.annotation.SuppressLint
+
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -193,6 +195,7 @@ private fun HistoryRow(
     }
 }
 
+@SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 fun Thumb(path: String?) {
     val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, path) {
