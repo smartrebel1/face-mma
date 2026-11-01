@@ -1,6 +1,8 @@
 package com.scan.app.capture
 
+import android.annotation.SuppressLint
 import android.app.Service
+import android.content.pm.PackageManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -162,7 +164,14 @@ class CaptureService : Service() {
 
     private fun ar(arText: String, enText: String): String = if (langAr()) arText else enText
 
+    private fun canPostNotifications(): Boolean =
+        Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    @SuppressLint("MissingPermission")
     private fun notifyReady(path: String) {
+        if (!canPostNotifications()) return
         try {
             NotificationManagerCompat.from(this).notify(
                 Notifications.ID_CAPTURE_READY,
@@ -173,14 +182,17 @@ class CaptureService : Service() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun fail(message: String) {
-        try {
-            NotificationManagerCompat.from(this).notify(
-                Notifications.ID_CAPTURE_FAILED,
-                Notifications.captureFailedNotification(this, message, langAr())
-            )
-        } catch (e: Exception) {
-            // ignore
+        if (canPostNotifications()) {
+            try {
+                NotificationManagerCompat.from(this).notify(
+                    Notifications.ID_CAPTURE_FAILED,
+                    Notifications.captureFailedNotification(this, message, langAr())
+                )
+            } catch (e: Exception) {
+                // ignore
+            }
         }
         toast(message)
     }

@@ -39,14 +39,14 @@ jobs:
         id: build
         continue-on-error: true
         working-directory: scan
-        run: |
+        run: |-
           set -o pipefail
           chmod +x ./gradlew
           ./gradlew --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/build.log" | tail -n 40
 
       - name: Publish build log if the build failed
         if: steps.build.outcome == 'failure'
-        run: |
+        run: |-
           set -euo pipefail
           mkdir -p scan/dist
           grep -E "e: file|error:|FAILURE:|What went wrong|Caused by|> Task .* FAILED" "$RUNNER_TEMP/build.log" | head -n 200 > scan/dist/build-errors.txt || true
@@ -60,24 +60,26 @@ jobs:
 
       - name: Publish APK if the build passed
         if: steps.build.outcome == 'success'
-        run: |
+        run: |-
           set -euo pipefail
+          VERSION="$(sed -n 's/.*versionName *= *"\([^"]*\)".*/\1/p' scan/app/build.gradle.kts | head -n 1)"
+          test -n "$VERSION"
+          echo "SCAN version: $VERSION"
           APK="$(find scan -path '*outputs/apk/debug/*.apk' -print -quit)"
           test -n "$APK"
           test -s "$APK"
-          cp "$APK" "$RUNNER_TEMP/SCAN-1.0.0-debug.apk"
           mkdir -p scan/dist
-          cp "$APK" scan/dist/SCAN-1.0.0-debug.apk
-          rm -f scan/dist/scan-app-debug.apk
-          sha256sum scan/dist/SCAN-1.0.0-debug.apk > scan/dist/sha256.txt
+          find scan/dist -maxdepth 1 -name 'SCAN-*-debug.apk' ! -name "SCAN-${VERSION}-debug.apk" -delete || true
+          cp "$APK" "scan/dist/SCAN-${VERSION}-debug.apk"
+          rm -f scan/dist/scan-app-debug.apk scan/dist/build.log scan/dist/build-errors.txt || true
+          sha256sum "scan/dist/SCAN-${VERSION}-debug.apk" > scan/dist/sha256.txt
           cat scan/dist/sha256.txt
           git config user.name "scan-ci"
           git config user.email "scan-ci@users.noreply.github.com"
-          rm -f scan/dist/build.log scan/dist/build-errors.txt || true
           git rm -f --cached --ignore-unmatch scan/dist/build.log scan/dist/build-errors.txt scan/dist/scan-app-debug.apk >/dev/null 2>&1 || true
-          git add -f scan/dist/SCAN-1.0.0-debug.apk scan/dist/sha256.txt
+          git add -A scan/dist
           git diff --cached --quiet && exit 0
-          git commit -m "ci: publish SCAN debug APK [skip ci]"
+          git commit -m "ci: publish SCAN ${VERSION} debug APK [skip ci]"
           for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
 
       - name: Lint
@@ -88,7 +90,7 @@ jobs:
 
       - name: Publish lint summary
         if: steps.build.outcome == 'success'
-        run: |
+        run: |-
           set -euo pipefail
           python3 scan/tools/lint_summary.py > scan/dist/lint.txt 2>&1 || echo "lint summary failed" > scan/dist/lint.txt
           git config user.name "scan-ci"
@@ -102,8 +104,8 @@ jobs:
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: SCAN-1.0.0-debug-apk
-          path: ${{ runner.temp }}/SCAN-1.0.0-debug.apk
+          name: SCAN-debug-apk
+          path: scan/dist/SCAN-*-debug.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -111,14 +113,17 @@ jobs:
         if: steps.build.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
+        run: |-
           set -euo pipefail
+          VERSION="$(sed -n 's/.*versionName *= *"\([^"]*\)".*/\1/p' scan/app/build.gradle.kts | head -n 1)"
+          APK="scan/dist/SCAN-${VERSION}-debug.apk"
+          test -s "$APK"
           TAG="scan-apk-${GITHUB_RUN_NUMBER}"
-          NOTES="APK قابل للتثبيت — SCAN 1.0.0 (debug, signed v2). minSdk 26 · targetSdk 35.
+          NOTES="APK قابل للتثبيت — SCAN ${VERSION} (debug, signed v2). minSdk 26 · targetSdk 35.
           SHA-256: $(cut -d' ' -f1 scan/dist/sha256.txt)
           البناء: commit ${GITHUB_SHA:0:7} · التحليل مساعد وليس إثباتًا نهائيًا، وقد يخطئ."
-          gh release create "$TAG" scan/dist/SCAN-1.0.0-debug.apk \
-            --title "SCAN APK #${GITHUB_RUN_NUMBER}" \
+          gh release create "$TAG" "$APK" \
+            --title "SCAN ${VERSION} — APK #${GITHUB_RUN_NUMBER}" \
             --notes "$NOTES" \
             --target "${GITHUB_SHA}" \
             || echo "release upload skipped (non-fatal)"
