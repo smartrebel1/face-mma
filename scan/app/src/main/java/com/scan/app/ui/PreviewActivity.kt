@@ -94,10 +94,11 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val decoded by produceState<Pair<Bitmap, Bitmap>?>(initialValue = null, path) {
-        value = withContext(Dispatchers.IO) {
+        val loaded = withContext(Dispatchers.IO) {
             val bmp = ImageUtils.loadSampled(path, 2400)
             if (bmp == null) null else bmp to ImageUtils.mosaic(bmp, 22)
         }
+        value = loaded
     }
 
     val strokes: SnapshotStateList<BlurStroke> = remember { mutableStateListOf() }

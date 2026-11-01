@@ -252,9 +252,10 @@ fun HistoryDetailScreen(id: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
 @Composable
 private fun Screenshot(path: String?) {
     val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, path) {
-        value = if (path == null) null else withContext(Dispatchers.IO) {
+        val loaded = if (path == null) null else withContext(Dispatchers.IO) {
             ImageUtils.loadSampled(path, 1400)
         }
+        value = loaded
     }
     val bmp = bitmap
     if (bmp == null) {

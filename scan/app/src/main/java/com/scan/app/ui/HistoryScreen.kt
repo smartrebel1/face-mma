@@ -196,9 +196,10 @@ private fun HistoryRow(
 @Composable
 fun Thumb(path: String?) {
     val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, path) {
-        value = if (path == null) null else withContext(Dispatchers.IO) {
+        val loaded = if (path == null) null else withContext(Dispatchers.IO) {
             ImageUtils.loadSampled(path, 220)
         }
+        value = loaded
     }
     Box(
         modifier = Modifier

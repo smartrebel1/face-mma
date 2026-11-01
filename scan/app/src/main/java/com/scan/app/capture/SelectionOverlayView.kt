@@ -53,6 +53,7 @@ class SelectionOverlayView(context: Context) : View(context) {
 
     private enum class Mode { NONE, MOVE, TL, TR, BL, BR, CREATE }
     private var mode = Mode.NONE
+    private val corners = FloatArray(8)
     private var lastX = 0f
     private var lastY = 0f
     private var createStartX = 0f
@@ -100,14 +101,15 @@ class SelectionOverlayView(context: Context) : View(context) {
         canvas.drawLine(rect.left, rect.top + thirdH, rect.right, rect.top + thirdH, guidePaint)
         canvas.drawLine(rect.left, rect.top + 2 * thirdH, rect.right, rect.top + 2 * thirdH, guidePaint)
 
-        listOf(
-            Pair(rect.left, rect.top),
-            Pair(rect.right, rect.top),
-            Pair(rect.left, rect.bottom),
-            Pair(rect.right, rect.bottom)
-        ).forEach { (x, y) ->
-            canvas.drawCircle(x, y, handleRadius, handlePaint)
-            canvas.drawCircle(x, y, handleRadius * 0.42f, handleInner)
+        corners[0] = rect.left; corners[1] = rect.top
+        corners[2] = rect.right; corners[3] = rect.top
+        corners[4] = rect.left; corners[5] = rect.bottom
+        corners[6] = rect.right; corners[7] = rect.bottom
+        var i = 0
+        while (i < 8) {
+            canvas.drawCircle(corners[i], corners[i + 1], handleRadius, handlePaint)
+            canvas.drawCircle(corners[i], corners[i + 1], handleRadius * 0.42f, handleInner)
+            i += 2
         }
     }
 
