@@ -65,16 +65,17 @@ jobs:
           APK="$(find scan -path '*outputs/apk/debug/*.apk' -print -quit)"
           test -n "$APK"
           test -s "$APK"
-          cp "$APK" "$RUNNER_TEMP/scan-app-debug.apk"
-          sha256sum "$RUNNER_TEMP/scan-app-debug.apk" | tee scan/dist/sha256.txt || true
+          cp "$APK" "$RUNNER_TEMP/SCAN-1.0.0-debug.apk"
           mkdir -p scan/dist
-          cp "$APK" scan/dist/scan-app-debug.apk
-          sha256sum scan/dist/scan-app-debug.apk > scan/dist/sha256.txt
+          cp "$APK" scan/dist/SCAN-1.0.0-debug.apk
+          rm -f scan/dist/scan-app-debug.apk
+          sha256sum scan/dist/SCAN-1.0.0-debug.apk > scan/dist/sha256.txt
+          cat scan/dist/sha256.txt
           git config user.name "scan-ci"
           git config user.email "scan-ci@users.noreply.github.com"
           rm -f scan/dist/build.log scan/dist/build-errors.txt || true
-          git rm -f --cached --ignore-unmatch scan/dist/build.log scan/dist/build-errors.txt >/dev/null 2>&1 || true
-          git add -f scan/dist/scan-app-debug.apk scan/dist/sha256.txt
+          git rm -f --cached --ignore-unmatch scan/dist/build.log scan/dist/build-errors.txt scan/dist/scan-app-debug.apk >/dev/null 2>&1 || true
+          git add -f scan/dist/SCAN-1.0.0-debug.apk scan/dist/sha256.txt
           git diff --cached --quiet && exit 0
           git commit -m "ci: publish SCAN debug APK [skip ci]"
           for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
@@ -101,10 +102,27 @@ jobs:
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: scan-debug-apk
-          path: ${{ runner.temp }}/scan-app-debug.apk
+          name: SCAN-1.0.0-debug-apk
+          path: ${{ runner.temp }}/SCAN-1.0.0-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Attach the APK to a GitHub release
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="scan-apk-${GITHUB_RUN_NUMBER}"
+          NOTES="APK قابل للتثبيت — SCAN 1.0.0 (debug, signed v2). minSdk 26 · targetSdk 35.
+          SHA-256: $(cut -d' ' -f1 scan/dist/sha256.txt)
+          البناء: commit ${GITHUB_SHA:0:7} · التحليل مساعد وليس إثباتًا نهائيًا، وقد يخطئ."
+          gh release create "$TAG" scan/dist/SCAN-1.0.0-debug.apk \
+            --title "SCAN APK #${GITHUB_RUN_NUMBER}" \
+            --notes "$NOTES" \
+            --target "${GITHUB_SHA}" \
+            || echo "release upload skipped (non-fatal)"
+          gh release view "$TAG" --json url,assets -q '.url' || true
 
       - name: Fail the job if compilation failed
         if: steps.build.outcome == 'failure'

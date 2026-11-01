@@ -27,7 +27,7 @@ cd scan
 ```
 
 أو من GitHub: تبويب **Actions** → «Build SCAN APK» → يعمل تلقائيًا عند أي دفع يمس `scan/**`.
-الـ APK يُنشر أيضًا داخل المستودع في `scan/dist/scan-app-debug.apk` (وتوجد نسخة كـ artifact).
+الـ APK يُنشر في مكانين: **Releases** (أصل ثابت قابل للتحميل) و`scan/dist/SCAN-1.0.0-debug.apk` داخل الفرع، مع نسخة كـ artifact في صفحة التشغيل.
 
 ## التثبيت (عربي)
 
