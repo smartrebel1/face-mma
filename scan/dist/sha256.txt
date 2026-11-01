@@ -1,1 +1,1 @@
-4ffff220cd6fcb3d24230ee63bcaa27c8602785bde32db8411eac8f875b478b9  scan/dist/scan-app-debug.apk
+b92eaadc63b9963e9428d601e7b7bc60f6fb1cf5679e030b720172f00f6307b2  scan/dist/scan-app-debug.apk
