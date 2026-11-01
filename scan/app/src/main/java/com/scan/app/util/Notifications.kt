@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.scan.app.MainActivity
 import com.scan.app.R
 import com.scan.app.capture.LensService
+import com.scan.app.ui.PreviewActivity
 
 object Notifications {
 
@@ -21,6 +22,8 @@ object Notifications {
     const val ID_LENS = 1001
     const val ID_CAPTURE = 1002
     const val ID_RESULT = 1003
+    const val ID_CAPTURE_READY = 1004
+    const val ID_CAPTURE_FAILED = 1005
 
     fun createChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -77,6 +80,36 @@ object Notifications {
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+    /** Safety net: if the preview activity cannot open, the user still gets the shot here. */
+    fun captureReadyNotification(ctx: Context, path: String, langAr: Boolean): Notification {
+        val i = Intent(ctx, PreviewActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(PreviewActivity.EXTRA_PATH, path)
+        val pi = PendingIntent.getActivity(
+            ctx, 12, i,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(ctx, CH_RESULT)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(if (langAr) "اللقطة جاهزة" else "Screenshot ready")
+            .setContentText(
+                if (langAr) "اضغط لفتح المعاينة والتحليل" else "Tap to open the preview and analyse"
+            )
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+    }
+
+    fun captureFailedNotification(ctx: Context, message: String, langAr: Boolean): Notification =
+        NotificationCompat.Builder(ctx, CH_RESULT)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(if (langAr) "تعذّر الالتقاط" else "Capture failed")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentText(message)
+            .setAutoCancel(true)
+            .setContentIntent(openApp(ctx))
             .build()
 
     fun resultNotification(ctx: Context, title: String, text: String, langAr: Boolean): Notification =

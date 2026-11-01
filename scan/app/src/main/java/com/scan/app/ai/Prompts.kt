@@ -22,7 +22,12 @@ object Prompts {
 
     fun system(lang: Lang): String = if (lang == Lang.AR) SYSTEM_AR else SYSTEM_EN
 
-    fun user(mode: AnalysisMode, lang: Lang, custom: String): String {
+    fun user(
+        mode: AnalysisMode,
+        lang: Lang,
+        custom: String,
+        historyContext: String = ""
+    ): String {
         val head = if (lang == Lang.AR) {
             "حلّل لقطة الشاشة المرفقة. هذه لقطة لمحتوى عام على وسائل التواصل الاجتماعي، صوّرها المستخدم بنفسه."
         } else {
@@ -66,7 +71,14 @@ object Prompts {
         } else {
             "\nExtra user instruction (follow unless it breaks the hard rules): $custom"
         }
-        return "$head\n\n$body$extra"
+        val history = if (historyContext.isBlank()) {
+            ""
+        } else if (lang == Lang.AR) {
+            "\n\nسياق من سجل المستخدم — لقطات سابقة لنفس المصدر (استخدمه في طبقة pattern فقط ولا تنسبه للحالية):\n$historyContext"
+        } else {
+            "\n\nUser history context — earlier captures of the same source (use it for the pattern layer only, never for this image):\n$historyContext"
+        }
+        return "$head\n\n$body$extra$history"
     }
 
     private val SYSTEM_AR = """
@@ -76,7 +88,7 @@ object Prompts {
 1) لا تُصدر حكمًا نهائيًا على شخص (مثل «شخص سيئ» أو «غير صالح للزواج») ولا تشخيصًا نفسيًا ولا اتهامًا.
 2) اسم الحساب أو صورته لا يُثبتان هوية صاحبه؛ قل ذلك صراحة عند الحاجة.
 3) فرّق دائمًا بين الاقتباس والسخرية ونشر رأي شخص آخر، وبين تبنّي صاحب الحساب لهذا الرأي. راعِ اللهجة المصرية والعامية والاختصارات.
-4) منشور واحد لا يُثبت نمطًا ثابتًا. إن لم تكن لديك عدة عناصر من نفس المصدر فاكتب في pattern: «لا توجد أدلة كافية».
+4) منشور واحد لا يُثبت نمطًا ثابتًا. إن ورد «سياق من سجل المستخدم» وفيه عنصران سابقان أو أكثر لنفس المصدر، فأمكن وصف نمط متكرر مع ذكر الأدلة من كل لقطة وحدود الاستنتاج؛ وإن غاب السياق أو قلّ عن ذلك فاكتب في pattern: «لا توجد أدلة كافية».
 5) إن كانت الصورة غير واضحة أو مقطوعة أو يغيب سياقها، قل ذلك مباشرة ولا تكمل التخمين.
 6) لا تخمّن ما هو غير ظاهر، ولا تستنتج معلومات عن أشخاص لم يظهروا في الصورة.
 7) الاقتباس من النص يكون حرفيًا، ولا تُضف معلومات من خارج الصورة.
@@ -98,7 +110,7 @@ Hard rules:
 1) Never give a final verdict about a person ("bad person", "unfit for marriage"), never a psychological diagnosis, never an accusation.
 2) An account name or photo does not prove the poster's identity; say so when relevant.
 3) Always separate quoting, sarcasm or sharing someone else's opinion from endorsing it. Account for Egyptian Arabic dialect and slang.
-4) One post never proves a stable pattern. Without several items from the same source write in pattern: "Not enough evidence".
+4) One post never proves a stable pattern. If "User history context" lists two or more earlier captures of the same source, you may describe a recurring pattern with the evidence from each capture and its limits; otherwise write in pattern: "Not enough evidence".
 5) If the image is unclear, cropped or lacks context, say so and stop instead of guessing.
 6) Never guess what is not visible and never infer facts about people who do not appear.
 7) Quote text verbatim and add nothing from outside the image.

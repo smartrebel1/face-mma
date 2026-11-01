@@ -233,7 +233,7 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(18.dp))
             Text(
-                "SCAN · 1.0.0",
+                "SCAN · " + appVersion(),
                 color = ScanColors.TextDim,
                 fontSize = 11.sp,
                 modifier = Modifier.fillMaxWidth()

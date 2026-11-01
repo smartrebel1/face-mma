@@ -5,12 +5,15 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.TextUtils
 import android.util.DisplayMetrics
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -57,6 +60,7 @@ object LensController {
     private var startY = 0
     private var dragging = false
     private var longPressFired = false
+    private var capturing = false
 
     val isBubbleShown: Boolean get() = bubble != null
 
@@ -238,6 +242,7 @@ object LensController {
         val c = ctx ?: return
         val manager = wm ?: return
         if (overlay != null) return
+        capturing = false
 
         val container = FrameLayout(c)
         val sel = SelectionOverlayView(c)
@@ -255,7 +260,7 @@ object LensController {
                 "Drag to select an area, then tap Capture"
             )
             setTextColor(Color.WHITE)
-            textSize = 13f
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             gravity = Gravity.CENTER
             setPadding(dp(16f), dp(10f), dp(16f), dp(10f))
             background = rounded(0xF2121821.toInt(), 22f)
@@ -269,51 +274,73 @@ object LensController {
             ).apply { topMargin = dp(52f) }
         )
 
-        val cancel = pillButton(c, ar("إلغاء", "Cancel"), 0x33FFFFFF, Color.WHITE)
-        val capture = pillButton(c, ar("التقاط", "Capture"), 0xFF22D3EE.toInt(), 0xFF04202A.toInt())
-
-        // A quick "one model / compare" chip before capturing, as asked.
+        // Quick "one model / compare" chip before capturing, as asked.
         val store = ScanApp.get(c).settings
-        val modeChip = pillButton(
+        val modeChip = actionButton(
             c,
-            if (store.selectionMode == "compare") ar("مقارنة", "Compare") else ar("موديل واحد", "One model"),
+            if (store.selectionMode == "compare") ar("مقارنة بين موديلين", "Compare two models")
+            else ar("موديل واحد", "One model"),
             0xCC121821.toInt(),
             0xFF22D3EE.toInt()
         ).apply {
-            textSize = 12f
-            setPadding(dp(16f), dp(8f), dp(16f), dp(8f))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(18f), dp(10f), dp(18f), dp(10f))
+            minimumHeight = dp(40f)
             setOnClickListener {
+                if (capturing) return@setOnClickListener
                 store.selectionMode = if (store.selectionMode == "compare") "single" else "compare"
-                text = if (store.selectionMode == "compare") ar("مقارنة", "Compare") else ar("موديل واحد", "One model")
+                text = if (store.selectionMode == "compare") ar("مقارنة بين موديلين", "Compare two models")
+                else ar("موديل واحد", "One model")
             }
         }
+
+        val cancel = actionButton(c, ar("إلغاء", "Cancel"), 0x40FFFFFF, Color.WHITE)
+        val capture = actionButton(c, ar("التقاط", "Capture"), 0xFF22D3EE.toInt(), 0xFF04202A.toInt())
 
         val actions = LinearLayout(c).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(cancel)
-            addView(capture, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginStart = dp(12f) })
+            addView(cancel, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(
+                capture,
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { marginStart = dp(10f) }
+            )
         }
 
-        val bar = LinearLayout(c).apply {
+        val panel = LinearLayout(c).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(modeChip, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(10f) })
-            addView(actions)
+            setPadding(dp(12f), dp(12f), dp(12f), dp(12f))
+            background = rounded(0xF20E151E.toInt(), 26f)
+            addView(
+                modeChip,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    bottomMargin = dp(12f)
+                }
+            )
+            addView(
+                actions,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
         }
+
+        val (screenW, _) = screenSize(c)
+        val panelWidth = minOf((screenW * 0.90f).toInt(), dp(460f))
         container.addView(
-            bar,
+            panel,
             FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                panelWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            ).apply { bottomMargin = dp(48f) }
+            ).apply { bottomMargin = dp(56f) }
         )
 
         val lp = WindowManager.LayoutParams(
@@ -332,22 +359,47 @@ object LensController {
         }
 
         cancel.setOnClickListener {
+            if (capturing) return@setOnClickListener
             removeOverlay()
             showBubble()
         }
 
         capture.setOnClickListener {
-            if (!sel.hasSelection()) return@setOnClickListener
+            if (capturing) return@setOnClickListener
+            capturing = true
             val rect: Rect = sel.selection()
-            removeOverlay()
-            hideBubble()
-            val i = Intent(c, ConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            i.putExtra(ConsentActivity.EXTRA_RECT, intArrayOf(rect.left, rect.top, rect.right, rect.bottom))
-            try {
-                c.startActivity(i)
-            } catch (e: Exception) {
-                showBubble()
-            }
+            // Show that the tap landed before any window disappears.
+            capture.isEnabled = false
+            cancel.isEnabled = false
+            modeChip.isEnabled = false
+            capture.text = ar("جارٍ الالتقاط…", "Capturing…")
+            hint.text = ar(
+                "تم استلام الطلب ✔ يفتح الآن إذن الالتقاط",
+                "Got it ✔ opening the capture permission now"
+            )
+            handler.postDelayed({
+                removeOverlay()
+                hideBubble()
+                val i = Intent(c, ConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                i.putExtra(
+                    ConsentActivity.EXTRA_RECT,
+                    intArrayOf(rect.left, rect.top, rect.right, rect.bottom)
+                )
+                try {
+                    c.startActivity(i)
+                } catch (e: Exception) {
+                    capturing = false
+                    showBubble()
+                    android.widget.Toast.makeText(
+                        c,
+                        ar(
+                            "تعذّر فتح شاشة إذن الالتقاط على هذا الجهاز",
+                            "The capture consent screen could not open on this device"
+                        ),
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }, 280)
         }
 
         try {
@@ -369,6 +421,7 @@ object LensController {
         }
         overlay = null
         selection = null
+        capturing = false
     }
 
     /** Called after a capture (or a denied consent) to bring the bubble back. */
@@ -487,6 +540,25 @@ object LensController {
 
     // ---------------------------------------------------------------- helpers
 
+    /** Big, readable, always-fits button: fixed paddings, one line, equal width in a row. */
+    private fun actionButton(context: Context, label: String, fill: Int, textColor: Int): TextView =
+        TextView(context).apply {
+            text = label
+            setTextColor(textColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            includeFontPadding = false
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(dp(10f), dp(17f), dp(10f), dp(17f))
+            minimumHeight = dp(54f)
+            background = rounded(fill, 18f)
+            isClickable = true
+            isFocusable = true
+        }
+
+    @Suppress("unused")
     private fun pillButton(context: Context, label: String, fill: Int, textColor: Int): TextView =
         TextView(context).apply {
             text = label

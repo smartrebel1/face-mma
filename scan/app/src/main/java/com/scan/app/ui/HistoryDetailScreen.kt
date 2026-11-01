@@ -139,6 +139,13 @@ fun HistoryDetailScreen(id: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
                 if (e.models.isNotBlank()) {
                     Text(e.models, color = ScanColors.TextDim, fontSize = 11.sp)
                 }
+                if (e.sourceKey.isNotBlank()) {
+                    Text(
+                        t("المصدر: ", "Source: ") + e.sourceKey,
+                        color = ScanColors.Accent,
+                        fontSize = 11.sp
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
                 Screenshot(path = e.imagePath)

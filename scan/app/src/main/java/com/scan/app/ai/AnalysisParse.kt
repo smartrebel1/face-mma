@@ -16,7 +16,10 @@ data class Analysis(
     val interpretation: String = "",
     val confidence: String = "",
     val limits: String = "",
-    val notes: List<String> = emptyList()
+    val notes: List<String> = emptyList(),
+    /** Extracted separately from [observed] so captures can be grouped by account. */
+    val account: String = "",
+    val platform: String = ""
 ) {
     fun hasAny(): Boolean =
         observed.isNotBlank() || classification.isNotBlank() || pattern.isNotBlank() ||
@@ -56,6 +59,10 @@ object AnalysisParser {
         val classification = flatten(root["classification"])
         val pattern = flatten(root["pattern"])
 
+        val observedObj = root["observed"] as? JsonObject
+        val account = observedObj?.get("account")?.let { flatten(it) }.orEmpty()
+        val platform = observedObj?.get("platform")?.let { flatten(it) }.orEmpty()
+
         val inference = root["inference"] as? JsonObject
         val interpretation = if (inference != null) {
             flattenLike(inference, listOf("interpretation", "possible_interpretation", "reading", "meaning", "summary"))
@@ -88,7 +95,9 @@ object AnalysisParser {
             interpretation = interpretation,
             confidence = confidence,
             limits = limits,
-            notes = notes
+            notes = notes,
+            account = account,
+            platform = platform
         )
         return if (result.hasAny()) result else Analysis(observed = cleaned)
     }

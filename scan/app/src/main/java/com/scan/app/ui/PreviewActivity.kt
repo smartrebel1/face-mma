@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,6 +64,12 @@ class PreviewActivity : ComponentActivity() {
         if (path == null) {
             finish()
             return
+        }
+        try {
+            androidx.core.app.NotificationManagerCompat.from(this)
+                .cancel(com.scan.app.util.Notifications.ID_CAPTURE_READY)
+        } catch (e: Exception) {
+            // ignore
         }
         val lang = ScanApp.get(this).settings.lang
         setContent {
@@ -115,6 +122,8 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     var painting by remember { mutableStateOf(false) }
     var brushFraction by remember { mutableStateOf(0.06f) }
     val models = remember { vm.selectedModels() }
+
+    LaunchedEffect(Unit) { vm.initSource() }
 
     fun closeAndDiscard() {
         if (state.savedId == null) {
@@ -197,6 +206,39 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
                         onClick = { brushFraction = (brushFraction + 0.02f).coerceAtMost(0.2f) }
                     )
                 }
+
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = vm.sourceLabel,
+                    onValueChange = { vm.setSource(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = {
+                        Text(t("المصدر / اسم الحساب", "Source / account name"))
+                    }
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (vm.sourceCount >= 2) {
+                        t(
+                            "لديك ${vm.sourceCount} لقطات محفوظة لنفس المصدر — النمط سيُحسب من ٣ أو أكثر ✔",
+                            "${vm.sourceCount} saved captures for this source — the pattern uses 3 or more ✔"
+                        )
+                    } else if (vm.sourceCount == 1) {
+                        t(
+                            "لقطة واحدة محفوظة لنفس المصدر — تحتاج ٣ لبدء طبقة «النمط»",
+                            "1 saved capture for this source — 3 are needed before the pattern layer"
+                        )
+                    } else {
+                        t(
+                            "أول لقطة لهذا المصدر — يُستخرج الاسم من الصورة تلقائيًا إن ظهر",
+                            "First capture for this source — the name is read from the image when visible"
+                        )
+                    },
+                    color = if (vm.sourceCount >= 2) ScanColors.Ok else ScanColors.TextDim,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
 
                 Spacer(Modifier.height(14.dp))
                 Text(

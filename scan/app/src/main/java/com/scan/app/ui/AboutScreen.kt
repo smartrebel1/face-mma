@@ -125,7 +125,7 @@ fun AboutScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.height(16.dp))
-            Text("الإصدار 1.0.0", color = ScanColors.TextDim, fontSize = 11.sp)
+            Text("الإصدار " + appVersion(), color = ScanColors.TextDim, fontSize = 11.sp)
             Spacer(Modifier.height(28.dp))
         }
     }

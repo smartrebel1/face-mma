@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.scan.app.Lang
 import com.scan.app.ScanApp
@@ -25,7 +26,7 @@ import java.io.File
 
 /**
  * Short-lived foreground service of type mediaProjection. It exists only because Android
- * requires the projection to be driven from a foreground service: it grabs one frame, crops it,
+ * requires the projection to be driven from a foreground service: it grabs one frame, crop it,
  * pushes it to the preview and stops.
  */
 class CaptureService : Service() {
@@ -40,12 +41,24 @@ class CaptureService : Service() {
         } else {
             0
         }
-        ServiceCompat.startForeground(
-            this,
-            Notifications.ID_CAPTURE,
-            Notifications.captureNotification(this, langAr()),
-            type
-        )
+        try {
+            ServiceCompat.startForeground(
+                this,
+                Notifications.ID_CAPTURE,
+                Notifications.captureNotification(this, langAr()),
+                type
+            )
+        } catch (e: Exception) {
+            // Without the foreground announcement the projection cannot start; say so loudly.
+            fail(
+                ar(
+                    "تعذّر تشغيل خدمة الالتقاط. تأكد من السماح بالإشعارات ثم أعد المحاولة.",
+                    "The capture service could not start. Allow notifications and try again."
+                )
+            )
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         val resultCode = intent?.getIntExtra(EXTRA_CODE, 0) ?: 0
         val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -63,6 +76,12 @@ class CaptureService : Service() {
         }
 
         if (data == null) {
+            fail(
+                ar(
+                    "لم يصل إذن الالتقاط. أعد المحاولة من العدسة.",
+                    "The capture permission was not delivered. Try again from the lens."
+                )
+            )
             LensController.restoreBubble()
             stopSelf()
             return START_NOT_STICKY
@@ -78,29 +97,54 @@ class CaptureService : Service() {
                 val file = File(dir, "shot_${System.currentTimeMillis()}.png")
                 if (!ImageUtils.savePng(bmp, file)) throw IllegalStateException("cannot write screenshot")
                 bmp.recycle()
+
+                // 1) Always leave a tappable notification, 2) then try to open the preview.
+                //    If the activity start is blocked, the notification is the way in.
+                notifyReady(file.absolutePath)
                 Handler(Looper.getMainLooper()).post {
-                    PreviewActivity.start(this@CaptureService, file.absolutePath)
+                    try {
+                        PreviewActivity.start(this@CaptureService, file.absolutePath)
+                    } catch (e: Exception) {
+                        // fallback: the notification posted above
+                    }
                 }
             } catch (e: ScreenCapture.CaptureError) {
-                if (e.kind == ScreenCapture.CaptureError.Kind.PERMISSION && !retried) {
-                    // Expired or one-shot token: ask once more, silently.
-                    val again = ConsentActivity.intentFor(this@CaptureService, rectArr, true)
-                    again.putExtra(ConsentActivity.EXTRA_RETRY, true)
+                val expired = e.kind == ScreenCapture.CaptureError.Kind.PERMISSION
+                if (expired && !retried) {
+                    // One-shot consent token expired: ask once more, quietly.
                     try {
-                        startActivity(again)
+                        startActivity(ConsentActivity.intentFor(this@CaptureService, rectArr, true))
                     } catch (ex: Exception) {
-                        toast(ar("انتهت صلاحية إذن الالتقاط، أعد المحاولة", "Capture consent expired, try again"))
+                        fail(
+                            ar(
+                                "انتهت صلاحية إذن الالتقاط. أعد المحاولة من العدسة.",
+                                "Capture consent expired. Try again from the lens."
+                            )
+                        )
                     }
                 } else {
-                    toast(
-                        ar(
-                            "تعذّر الالتقاط: أعد المحاولة من العدسة",
-                            "Capture failed: try again from the lens"
+                    when (e.kind) {
+                        ScreenCapture.CaptureError.Kind.TIMEOUT -> fail(
+                            ar(
+                                "لم تصل صورة من النظام (مهلة). أعد المحاولة من العدسة.",
+                                "No frame arrived from the system (timeout). Try again from the lens."
+                            )
                         )
-                    )
+
+                        ScreenCapture.CaptureError.Kind.PERMISSION -> fail(
+                            ar(
+                                "انتهت صلاحية إذن الالتقاط. أعد المحاولة من العدسة.",
+                                "Capture consent expired. Try again from the lens."
+                            )
+                        )
+
+                        else -> fail(
+                            ar("تعذّر الالتقاط: ", "Capture failed: ") + e.message.orEmpty()
+                        )
+                    }
                 }
             } catch (e: Exception) {
-                toast(ar("تعذّر الالتقاط", "Capture failed"))
+                fail(ar("تعذّر الالتقاط: ", "Capture failed: ") + (e.message ?: ""))
             } finally {
                 LensController.restoreBubble()
                 stopSelf()
@@ -118,9 +162,37 @@ class CaptureService : Service() {
 
     private fun ar(arText: String, enText: String): String = if (langAr()) arText else enText
 
+    private fun notifyReady(path: String) {
+        try {
+            NotificationManagerCompat.from(this).notify(
+                Notifications.ID_CAPTURE_READY,
+                Notifications.captureReadyNotification(this, path, langAr())
+            )
+        } catch (e: Exception) {
+            // notification permission revoked: the preview still opens directly
+        }
+    }
+
+    private fun fail(message: String) {
+        try {
+            NotificationManagerCompat.from(this).notify(
+                Notifications.ID_CAPTURE_FAILED,
+                Notifications.captureFailedNotification(this, message, langAr())
+            )
+        } catch (e: Exception) {
+            // ignore
+        }
+        toast(message)
+    }
+
     private fun toast(text: String) {
         Handler(Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(applicationContext, text, android.widget.Toast.LENGTH_LONG).show()
+            try {
+                android.widget.Toast.makeText(applicationContext, text, android.widget.Toast.LENGTH_LONG)
+                    .show()
+            } catch (e: Exception) {
+                // ignore
+            }
         }
     }
 

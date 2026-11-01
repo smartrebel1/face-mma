@@ -32,8 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -296,5 +298,18 @@ fun CheckRow(text: String, checked: Boolean, onClick: () -> Unit) {
         }
         Spacer(Modifier.size(12.dp))
         Text(text, color = ScanColors.Text, fontSize = 14.sp)
+    }
+}
+
+/** Version straight from the installed APK, so nobody has to guess which build they run. */
+@Composable
+fun appVersion(): String {
+    val context = LocalContext.current
+    return remember(context) {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+        } catch (e: Exception) {
+            ""
+        }
     }
 }

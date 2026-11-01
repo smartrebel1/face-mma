@@ -278,6 +278,66 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
     var customInstruction by mutableStateOf(store.customInstruction)
         private set
 
+    /** Account/source label that groups captures of the same person. */
+    var sourceLabel by mutableStateOf("")
+        private set
+    var sourceCount by mutableStateOf(0)
+        private set
+
+    fun initSource() {
+        if (sourceLabel.isNotBlank()) return
+        sourceLabel = store.lastSource
+        refreshSourceCount()
+    }
+
+    fun setSource(text: String) {
+        sourceLabel = text
+        refreshSourceCount()
+    }
+
+    private fun normalizeSource(s: String): String =
+        s.trim().lowercase().replace("@", "").replace(" ", "").replace("#", "")
+
+    private fun refreshSourceCount() {
+        val key = normalizeSource(sourceLabel)
+        if (key.isEmpty()) {
+            sourceCount = 0
+            return
+        }
+        viewModelScope.launch {
+            sourceCount = withContext(Dispatchers.IO) {
+                try {
+                    scan.db.history().bySource(key, 50).count { it.analysisJson.isNotBlank() }
+                } catch (e: Exception) {
+                    0
+                }
+            }
+        }
+    }
+
+    /** Text handed to the model so the pattern layer is grounded in real earlier captures. */
+    private fun historyContext(items: List<HistoryEntity>): String {
+        if (items.isEmpty()) return ""
+        return buildString {
+            append("عدد اللقطات لنفس المصدر بعد إضافة الحالية: ").append(items.size + 1).append("\n")
+            items.forEachIndexed { index, item ->
+                append("\n[").append(index + 1).append("] ")
+                val a = try {
+                    json.decodeFromString(Analysis.serializer(), item.analysisJson)
+                } catch (e: Exception) {
+                    null
+                }
+                if (a == null) {
+                    append("لقطة بدون تحليل")
+                } else {
+                    if (a.observed.isNotBlank()) append("الملاحظ: ").append(a.observed.take(400)).append("\n")
+                    if (a.classification.isNotBlank()) append("   التصنيف: ").append(a.classification.take(200)).append("\n")
+                    if (a.interpretation.isNotBlank()) append("   قراءة سابقة: ").append(a.interpretation.take(300))
+                }
+            }
+        }
+    }
+
     fun chooseMode(m: AnalysisMode) {
         mode = m
         store.lastModeUsed = m.id
@@ -324,7 +384,19 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val lang = store.lang
                 val system = Prompts.system(lang)
-                val user = Prompts.user(mode, lang, customInstruction)
+                val key = normalizeSource(sourceLabel)
+                val earlier = withContext(Dispatchers.IO) {
+                    if (key.isEmpty()) {
+                        emptyList()
+                    } else {
+                        try {
+                            scan.db.history().bySource(key, 5).filter { it.analysisJson.isNotBlank() }
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                    }
+                }
+                val user = Prompts.user(mode, lang, customInstruction, historyContext(earlier))
                 val fallback = store.fallbackEnabled
 
                 val results = if (compare) {
@@ -346,10 +418,16 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
+                // Learn the account from the answer so the next capture is grouped automatically.
+                val account = results.firstOrNull { it.ok }?.analysis?.account?.trim().orEmpty()
+                val label = sourceLabel.ifBlank { account }
+                if (sourceLabel.isBlank() && account.isNotBlank()) sourceLabel = account
+                if (label.isNotBlank()) store.lastSource = label
                 val savedId = withContext(Dispatchers.IO) {
-                    saveHistory(results, edited, sourcePath)
+                    saveHistory(results, edited, sourcePath, normalizeSource(label))
                 }
                 state = state.copy(busy = false, results = results, savedId = savedId)
+                refreshSourceCount()
             } catch (e: Exception) {
                 state = state.copy(busy = false, error = e.message ?: "error")
             }
@@ -357,7 +435,12 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Saves the (possibly blurred) image plus the analysis. */
-    private suspend fun saveHistory(results: List<ModelResult>, edited: Bitmap?, sourcePath: String): Long {
+    private suspend fun saveHistory(
+        results: List<ModelResult>,
+        edited: Bitmap?,
+        sourcePath: String,
+        sourceKey: String
+    ): Long {
         val dir = File(scan.filesDir, "history").apply { mkdirs() }
         val target = File(dir, "hist_${System.currentTimeMillis()}.png")
         val ok = if (edited != null) ImageUtils.savePng(edited, target) else {
@@ -381,14 +464,17 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
             models = models,
             analysisJson = json.encodeToString(Analysis.serializer(), best),
             rawText = dump,
-            title = (best.observed.take(60).ifBlank { mode.ar })
+            title = (best.observed.take(60).ifBlank { mode.ar }),
+            sourceKey = sourceKey
         )
         return scan.db.history().insert(entity)
     }
 
     fun saveOnly(edited: Bitmap?, sourcePath: String) {
         viewModelScope.launch {
-            val id = withContext(Dispatchers.IO) { saveHistory(emptyList(), edited, sourcePath) }
+            val id = withContext(Dispatchers.IO) {
+                saveHistory(emptyList(), edited, sourcePath, normalizeSource(sourceLabel))
+            }
             state = state.copy(savedId = id)
         }
     }

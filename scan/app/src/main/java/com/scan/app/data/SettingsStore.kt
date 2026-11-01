@@ -55,6 +55,11 @@ class SettingsStore(context: Context) {
         get() = sp.getString("custom_instruction", "") ?: ""
         set(v) = sp.edit().putString("custom_instruction", v).apply()
 
+    /** Last account/source label, so the next capture of the same person is grouped automatically. */
+    var lastSource: String
+        get() = sp.getString("last_source", "") ?: ""
+        set(v) = sp.edit().putString("last_source", v).apply()
+
     var lastModeUsed: String
         get() = sp.getString("last_mode", defaultMode) ?: defaultMode
         set(v) = sp.edit().putString("last_mode", v).apply()
