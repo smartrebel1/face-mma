@@ -39,6 +39,11 @@ class SettingsStore(context: Context) {
         get() = sp.getString("selection_mode", "single") ?: "single"
         set(v) = sp.edit().putString("selection_mode", v).apply()
 
+    /** Reads the account name from the shot automatically and files it in that account folder. */
+    var autoLabel: Boolean
+        get() = sp.getBoolean("auto_label", true)
+        set(v) = sp.edit().putBoolean("auto_label", v).apply()
+
     var fallbackEnabled: Boolean
         get() = sp.getBoolean("fallback", true)
         set(v) = sp.edit().putBoolean("fallback", v).apply()

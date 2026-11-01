@@ -126,6 +126,11 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     LaunchedEffect(path) {
         val id = com.scan.app.data.CaptureStore.get(context).byFile(path)?.id
         vm.initCapture(id)
+        // The account name is detected a moment after the capture; show it as soon as it lands.
+        repeat(8) {
+            kotlinx.coroutines.delay(900)
+            vm.syncDetectedLabel()
+        }
     }
 
     fun closeAndDiscard() {

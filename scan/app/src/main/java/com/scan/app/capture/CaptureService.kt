@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.scan.app.Lang
 import com.scan.app.ScanApp
+import com.scan.app.ai.AutoLabeler
 import com.scan.app.data.CaptureStore
 import com.scan.app.ui.PreviewActivity
 import com.scan.app.util.ImageUtils
@@ -101,15 +102,30 @@ class CaptureService : Service() {
                 if (!ImageUtils.savePng(bmp, file)) throw IllegalStateException("cannot write screenshot")
                 bmp.recycle()
 
-                // The lens only captures; the app archives the shot right away, tagged with the
-                // last source used so consecutive shots of one person stay in one group.
+                // The lens only captures; the app archives the shot right away in its account
+                // folder (auto-named), so nothing depends on the user touching the screen.
+                val app = ScanApp.get(this@CaptureService)
+                // With automatic naming on, the shot starts unnamed and the labeler files it;
+                // otherwise it falls back to the last account the user used.
+                val initialLabel = if (app.settings.autoLabel) "" else app.settings.lastSource
                 val record = try {
-                    CaptureStore.get(this@CaptureService)
-                        .add(file, ScanApp.get(this@CaptureService).settings.lastSource)
+                    CaptureStore.get(this@CaptureService).add(file, initialLabel)
                 } catch (e: Exception) {
                     null
                 }
                 val shotPath = record?.file ?: file.absolutePath
+
+                // Automatic account naming: reads only the header band, files the shot in the
+                // account folder, and never delays the preview.
+                if (record != null && app.settings.autoLabel) {
+                    app.appScope.launch {
+                        try {
+                            AutoLabeler.of(app).labelOne(record.id)
+                        } catch (e: Exception) {
+                            // a failed read must never lose the screenshot
+                        }
+                    }
+                }
 
                 // 1) Always leave a tappable notification, 2) then try to open the preview.
                 //    If the activity start is blocked, the notification is the way in.

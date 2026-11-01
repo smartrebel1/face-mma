@@ -66,6 +66,34 @@ object ImageUtils {
         false
     }
 
+    /**
+     * Crops the header band of a screenshot and returns it as a small base64 JPEG. This is what
+     * the automatic account labeler sends: a thin strip instead of the whole picture.
+     */
+    fun bandBase64(path: String, topFraction: Float = 0.34f, maxWidth: Int = 760, quality: Int = 72): String? {
+        val full = loadSampled(path, 1600) ?: return null
+        return try {
+            val w = full.width
+            val bandH = (full.height * topFraction.coerceIn(0.1f, 1f)).toInt().coerceAtLeast(1)
+            val band = try {
+                Bitmap.createBitmap(full, 0, 0, w, bandH)
+            } catch (e: Exception) {
+                full
+            }
+            val data = toJpegBase64(band, maxWidth, quality)
+            if (band !== full) band.recycle()
+            if (full !== band) full.recycle()
+            data
+        } catch (e: Exception) {
+            try {
+                full.recycle()
+            } catch (e2: Exception) {
+                // ignore
+            }
+            null
+        }
+    }
+
     /** Mosaic "blur" used by the hide-area brush: fast, and impossible to reverse. */
     fun mosaic(src: Bitmap, block: Int = 18): Bitmap {
         val smallW = (src.width / block).coerceAtLeast(1)

@@ -85,12 +85,45 @@ fun LibraryScreen(onBack: () -> Unit, onOpenSource: (String) -> Unit) {
 
             Text(
                 t(
-                    "إجمالي اللقطات المحفوظة: ${vm.total} · المجموعات: ${vm.groups.size}",
-                    "Archived captures: ${vm.total} · groups: ${vm.groups.size}"
+                    "إجمالي اللقطات المحفوظة: ${vm.total} · الحسابات (الفولدرات): ${vm.groups.size}",
+                    "Archived captures: ${vm.total} · accounts (folders): ${vm.groups.size}"
                 ),
                 color = ScanColors.TextDim,
                 fontSize = 11.sp
             )
+
+            if (vm.unlabeled > 0) {
+                Spacer(Modifier.height(8.dp))
+                CardBox {
+                    Text(
+                        t(
+                            "فيه ${vm.unlabeled} لقطة لسه بدون اسم حساب، فهي في فولدر _no_source.",
+                            "${vm.unlabeled} captures still have no account name, so they sit in _no_source."
+                        ),
+                        color = ScanColors.Text,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    SecondaryButton(
+                        text = if (vm.labelling) {
+                            t("جارٍ التسمية…", "Naming…")
+                        } else {
+                            t("سمّها الآن بذكاء (يقرأ شريط الصورة العلوي)", "Name them now (reads the top band)")
+                        },
+                        enabled = !vm.labelling,
+                        onClick = { vm.autoLabelAll() }
+                    )
+                    if (vm.labelInfo.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(vm.labelInfo, color = ScanColors.TextDim, fontSize = 11.sp)
+                    }
+                }
+            } else if (vm.labelInfo.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(vm.labelInfo, color = ScanColors.Ok, fontSize = 11.sp)
+            }
+
             Spacer(Modifier.height(6.dp))
 
             if (vm.groups.isEmpty()) {
@@ -174,6 +207,16 @@ private fun GroupRow(group: SourceGroup, onClick: () -> Unit, onDelete: () -> Un
                 ),
                 color = ScanColors.TextDim,
                 fontSize = 11.sp
+            )
+            if (group.platform.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(group.platform, color = ScanColors.Accent, fontSize = 10.sp)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                t("الفولدر: library/${group.folder}", "Folder: library/${group.folder}"),
+                color = ScanColors.TextDim.copy(alpha = 0.7f),
+                fontSize = 9.sp
             )
             if (group.count >= 3) {
                 Spacer(Modifier.height(4.dp))

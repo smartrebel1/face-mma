@@ -85,6 +85,24 @@ object Prompts {
      * Pass 1 of a series: the model looks at one batch of captures and writes a compact, plain-text
      * digest per screenshot so pass 2 can reason over 30 captures without 30 images in one call.
      */
+    /**
+     * Used right after a capture: only read the account shown in the header band of the shot, so
+     * the picture can be filed in the right account folder without the user typing anything.
+     */
+    fun accountDetect(lang: Lang): String = if (lang == Lang.AR) {
+        "هذه شريط علوي من لقطة شاشة لتطبيق تواصل اجتماعي.\n" +
+            "مهمتك الوحيدة: قراءة اسم الحساب الظاهر (اسم العرض أو المعرّف @handle) واسم المنصة.\n" +
+            "قواعد: لا تخمّن. إن لم يكن الاسم واضحًا ومقروءًا في الصورة اترك الحقل فارغًا. " +
+            "لا تعليق ولا تحليل ولا حكم على الشخص.\n" +
+            "أعد JSON فقط بالشكل: {\"platform\": \"\", \"account\": \"\", \"confidence\": \"high|medium|low\"}"
+    } else {
+        "This is the top band of a social app screenshot.\n" +
+            "Your only job: read the visible account name (display name or @handle) and the platform.\n" +
+            "Rules: never guess. If the name is not clearly readable leave the field empty. " +
+            "No commentary, no analysis, no judgement about the person.\n" +
+            "Return JSON only: {\"platform\": \"\", \"account\": \"\", \"confidence\": \"high|medium|low\"}"
+    }
+
     fun batch(
         batchIndex: Int,
         batchCount: Int,

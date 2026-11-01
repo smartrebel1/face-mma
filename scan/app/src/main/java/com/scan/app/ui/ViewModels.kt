@@ -22,6 +22,7 @@ import com.scan.app.ai.Prompts
 import com.scan.app.ai.ProviderRegistry
 import com.scan.app.ai.ar
 import com.scan.app.ai.en
+import com.scan.app.ai.AutoLabeler
 import com.scan.app.ai.SeriesEngine
 import com.scan.app.ai.SeriesProgress
 import com.scan.app.capture.LensService
@@ -298,9 +299,20 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
         captureId = id
         val record = id?.let { library.byId(it) }
         if (sourceLabel.isBlank()) {
-            sourceLabel = record?.label?.takeIf { it.isNotBlank() } ?: store.lastSource
+            sourceLabel = record?.label?.takeIf { it.isNotBlank() }
+                ?: if (store.autoLabel) "" else store.lastSource
         }
         refreshSourceCount()
+    }
+
+    /** The labeler names the shot in the background; pull the name in while the preview is open. */
+    fun syncDetectedLabel() {
+        if (sourceTouched) return
+        val record = captureId?.let { library.byId(it) } ?: return
+        if (record.label.isNotBlank() && record.label != sourceLabel) {
+            sourceLabel = record.label
+            refreshSourceCount()
+        }
     }
 
     fun initSource() {
@@ -316,8 +328,12 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
         library.remove(id)
     }
 
+    /** True once the user edited the name by hand; automatic names then step aside. */
+    private var sourceTouched = false
+
     fun setSource(text: String) {
         sourceLabel = text
+        sourceTouched = true
         refreshSourceCount()
     }
 
@@ -445,8 +461,14 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
 
                 // Learn the account from the answer so the next capture is grouped automatically.
                 val account = results.firstOrNull { it.ok }?.analysis?.account?.trim().orEmpty()
-                val label = sourceLabel.ifBlank { account }
-                if (sourceLabel.isBlank() && account.isNotBlank()) sourceLabel = account
+                val detected = captureId?.let { id -> library.byId(id)?.label }.orEmpty()
+                val label = when {
+                    sourceTouched && sourceLabel.isNotBlank() -> sourceLabel
+                    detected.isNotBlank() -> detected
+                    sourceLabel.isNotBlank() -> sourceLabel
+                    else -> account
+                }
+                if (sourceLabel.isBlank() && label.isNotBlank()) sourceLabel = label
                 if (label.isNotBlank()) store.lastSource = label
                 val savedId = withContext(Dispatchers.IO) {
                     saveHistory(results, edited, sourcePath, normalizeSource(label))
@@ -555,6 +577,12 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var total by mutableStateOf(0)
         private set
+    var unlabeled by mutableStateOf(0)
+        private set
+    var labelling by mutableStateOf(false)
+        private set
+    var labelInfo by mutableStateOf("")
+        private set
 
     init {
         refresh()
@@ -563,6 +591,39 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         groups = library.groups(query)
         total = library.count()
+        unlabeled = library.unlabeled().size
+    }
+
+    /** Reads the header of every unnamed capture and files it in the right account folder. */
+    fun autoLabelAll() {
+        if (labelling) return
+        val app = getApplication<Application>()
+        val scan = ScanApp.get(app)
+        if (scan.settings.selectedModels.isEmpty()) {
+            labelInfo = "أضف مفتاحًا واختر موديلًا أولًا حتى يستطيع التطبيق قراءة اسم الحساب."
+            return
+        }
+        labelling = true
+        labelInfo = "جارٍ قراءة أسماء الحسابات…"
+        viewModelScope.launch {
+            try {
+                val named = AutoLabeler.of(scan).labelMissing { done, total ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        labelInfo = "تسمية $done من $total…"
+                    }
+                }
+                labelInfo = if (named > 0) {
+                    "تم ربط $named لقطة بفولدر حسابها ✓"
+                } else {
+                    "لم أستطع قراءة اسم واضح في اللقطات المتبقية."
+                }
+            } catch (e: Exception) {
+                labelInfo = e.message ?: "error"
+            } finally {
+                labelling = false
+                refresh()
+            }
+        }
     }
 
     /** Named updateQuery: a setQuery would clash with the generated setter of [query]. */
@@ -595,6 +656,8 @@ class SourceViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var captures by mutableStateOf<List<CaptureRecord>>(emptyList())
         private set
+    var folder by mutableStateOf("")
+        private set
     var selected by mutableStateOf<Set<String>>(emptySet())
         private set
 
@@ -625,6 +688,7 @@ class SourceViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         val list = library.bySource(sourceKey)
         captures = list
+        folder = library.folderNameOf(sourceKey)
         label = list.firstOrNull { it.label.isNotBlank() }?.label
             ?: if (sourceKey.isBlank()) "" else sourceKey
         selected = list.map { it.id }.toSet()

@@ -118,6 +118,14 @@ fun SourceScreen(sourceKey: String, onBack: () -> Unit) {
                 color = ScanColors.TextDim,
                 fontSize = 12.sp
             )
+            Text(
+                t(
+                    "فولدر هذا الحساب: library/${vm.folder}",
+                    "This account's folder: library/${vm.folder}"
+                ),
+                color = ScanColors.TextDim.copy(alpha = 0.7f),
+                fontSize = 10.sp
+            )
             Spacer(Modifier.height(8.dp))
 
             OutlinedTextField(
@@ -127,6 +135,18 @@ fun SourceScreen(sourceKey: String, onBack: () -> Unit) {
                 singleLine = true,
                 label = { Text(t("اسم المصدر / الحساب", "Source / account name")) }
             )
+            if (vm.sourceKey.isBlank()) {
+                Text(
+                    t(
+                        "المجموعة دي بدون اسم. اكتب الاسم فوق واضغط «تسمية كل لقطات المجموعة» مرة واحدة، أو شغّل «تسمية تلقائية» من المكتبة ليقرأ التطبيق الأسماء من الصور.",
+                        "This group has no name. Type it above and press “Name every capture in this group” once, or run the automatic naming in the library."
+                    ),
+                    color = ScanColors.Warn,
+                    fontSize = 10.sp,
+                    lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = {
                     vm.renameGroup(nameDraft)

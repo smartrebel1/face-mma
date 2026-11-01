@@ -58,6 +58,7 @@ fun SettingsScreen(
     var defaultMode by remember { mutableStateOf(AnalysisMode.from(store.defaultMode)) }
     var autoDelete by remember { mutableIntStateOf(store.autoDeleteDays) }
     var fallback by remember { mutableStateOf(store.fallbackEnabled) }
+    var autoLabel by remember { mutableStateOf(store.autoLabel) }
     var confirmWipe by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -115,6 +116,47 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            SectionTitle(t("المكتبة والتسمية", "Library & naming"))
+            CardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            t("تسمية الحساب تلقائيًا بعد الالتقاط", "Name the account automatically"),
+                            color = ScanColors.Text,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            t(
+                                "بعد كل لقطة يُقرأ شريطها العلوي فقط ثم تُحفظ الصورة في فولدر الحساب فورًا؛ تفتح المكتبة وتجدها بانتظارك.",
+                                "After each capture only its top band is read, then the shot is filed in the account folder right away."
+                            ),
+                            color = ScanColors.TextDim,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                    Switch(
+                        checked = autoLabel,
+                        onCheckedChange = {
+                            autoLabel = it
+                            store.autoLabel = it
+                        }
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    t(
+                        "خصوصية: الجزء المُرسل هو الشريط العلوي فقط (أقل من ثلث الصورة) وبجودة صغيرة، ولو أوقفت هذا الخيار لن تُرسل أي صورة قبل ضغط «تحليل».",
+                        "Privacy: only the top band (under a third of the picture) is sent, in low quality; switch this off and nothing leaves the device before you press Analyse."
+                    ),
+                    color = ScanColors.TextDim.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
             }
 
             Spacer(Modifier.height(14.dp))

@@ -1,1 +1,0 @@
-df403bdd16b98bfd4d9f5934e834b35857d77ff4de2e76f29ade29c896e81509  scan/dist/SCAN-1.2.0-debug.apk
