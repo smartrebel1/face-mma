@@ -1,1 +1,1 @@
-52ff6e2093a85709102434c0020e6c295a7a0e7657ff7a3486c9fad886f4c339  scan/dist/SCAN-1.1.0-debug.apk
+8a6937e4eadb5196ebabf6ef137114d1311c75c2e284fdc5e65d12a4a0474b6d  scan/dist/SCAN-1.2.0-debug.apk
