@@ -1,5 +1,6 @@
 package com.scan.app.ui
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -315,6 +316,7 @@ fun SourceScreen(sourceKey: String, onBack: () -> Unit) {
     }
 }
 
+@SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 private fun CaptureTile(record: CaptureRecord, selected: Boolean, onClick: () -> Unit) {
     val bitmap: Bitmap? by produceState<Bitmap?>(initialValue = null, record.file) {
