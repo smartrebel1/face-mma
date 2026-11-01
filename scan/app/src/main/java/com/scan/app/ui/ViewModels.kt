@@ -61,12 +61,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         keyCount = vault.all().size
     }
 
-    fun setMode(m: AnalysisMode) {
+    fun chooseMode(m: AnalysisMode) {
         mode = m
         store.defaultMode = m.id
     }
 
-    fun setSelectionMode(id: String) {
+    fun chooseSelectionMode(id: String) {
         selectionMode = id
         store.selectionMode = id
     }
@@ -264,12 +264,12 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
     var customInstruction by mutableStateOf(store.customInstruction)
         private set
 
-    fun setMode(m: AnalysisMode) {
+    fun chooseMode(m: AnalysisMode) {
         mode = m
         store.lastModeUsed = m.id
     }
 
-    fun setCompare(v: Boolean) {
+    fun chooseCompare(v: Boolean) {
         compare = v
         store.selectionMode = if (v) "compare" else "single"
     }

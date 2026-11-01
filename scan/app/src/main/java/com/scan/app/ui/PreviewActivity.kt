@@ -205,7 +205,7 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
                         PillChip(
                             text = if (com.scan.app.LocalLang.current == com.scan.app.Lang.AR) m.ar else m.en,
                             selected = vm.mode == m,
-                            onClick = { vm.setMode(m) }
+                            onClick = { vm.chooseMode(m) }
                         )
                     }
                 }
@@ -218,12 +218,12 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
                     PillChip(
                         text = t("موديل واحد", "One model"),
                         selected = !vm.compare,
-                        onClick = { vm.setCompare(false) }
+                        onClick = { vm.chooseCompare(false) }
                     )
                     PillChip(
                         text = t("مقارنة بين موديلين أو أكثر", "Compare two or more"),
                         selected = vm.compare,
-                        onClick = { vm.setCompare(true) }
+                        onClick = { vm.chooseCompare(true) }
                     )
                 }
 

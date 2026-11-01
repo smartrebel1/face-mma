@@ -196,12 +196,12 @@ fun HomeScreen(
                     PillChip(
                         text = t("موديل واحد", "One model"),
                         selected = vm.selectionMode == "single",
-                        onClick = { vm.setSelectionMode("single") }
+                        onClick = { vm.chooseSelectionMode("single") }
                     )
                     PillChip(
                         text = t("مقارنة بين موديلين أو أكثر", "Compare two or more"),
                         selected = vm.selectionMode == "compare",
-                        onClick = { vm.setSelectionMode("compare") }
+                        onClick = { vm.chooseSelectionMode("compare") }
                     )
                 }
                 Spacer(Modifier.height(12.dp))
@@ -221,7 +221,7 @@ fun HomeScreen(
                         PillChip(
                             text = if (lang == Lang.AR) m.ar else m.en,
                             selected = vm.mode == m,
-                            onClick = { vm.setMode(m) }
+                            onClick = { vm.chooseMode(m) }
                         )
                     }
                 }
