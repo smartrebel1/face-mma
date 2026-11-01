@@ -5,10 +5,11 @@ on:
   push:
     paths:
       - "scan/**"
+      - "!scan/dist/**"
       - ".github/workflows/build-scan-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug-apk:
@@ -17,6 +18,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -33,24 +36,58 @@ jobs:
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build debug APK
+        id: build
+        continue-on-error: true
         working-directory: scan
         run: |
+          set -o pipefail
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:assembleDebug --stacktrace
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee "$RUNNER_TEMP/build.log" | tail -n 40
 
-      - name: Verify APK
+      - name: Publish build log if the build failed
+        if: steps.build.outcome == 'failure'
         run: |
           set -euo pipefail
-          find scan -name '*.apk' -path '*outputs*' -print
-          APK="$(find scan -name '*.apk' -path '*outputs/apk/debug*' -print -quit)"
+          mkdir -p scan/dist
+          grep -E "e: file|error:|FAILURE:|What went wrong|Caused by|> Task .* FAILED" "$RUNNER_TEMP/build.log" | head -n 200 > scan/dist/build-errors.txt || true
+          tail -n 6000 "$RUNNER_TEMP/build.log" > scan/dist/build.log || true
+          git config user.name "scan-ci"
+          git config user.email "scan-ci@users.noreply.github.com"
+          git add -f scan/dist/build.log scan/dist/build-errors.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: capture SCAN build errors [skip ci]"
+          for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
+
+      - name: Publish APK if the build passed
+        if: steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          APK="$(find scan -path '*outputs/apk/debug/*.apk' -print -quit)"
           test -n "$APK"
-          cp "$APK" "$RUNNER_TEMP/scan-debug.apk"
-          sha256sum "$RUNNER_TEMP/scan-debug.apk"
+          test -s "$APK"
+          cp "$APK" "$RUNNER_TEMP/scan-app-debug.apk"
+          sha256sum "$RUNNER_TEMP/scan-app-debug.apk" | tee scan/dist/sha256.txt || true
+          mkdir -p scan/dist
+          cp "$APK" scan/dist/scan-app-debug.apk
+          sha256sum scan/dist/scan-app-debug.apk > scan/dist/sha256.txt
+          git config user.name "scan-ci"
+          git config user.email "scan-ci@users.noreply.github.com"
+          git add -f scan/dist/scan-app-debug.apk scan/dist/sha256.txt
+          rm -f scan/dist/build.log scan/dist/build-errors.txt || true
+          git add -f -A scan/dist/sha256.txt scan/dist/scan-app-debug.apk || true
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: publish SCAN debug APK [skip ci]"
+          for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
 
       - name: Upload APK artifact
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: scan-debug-apk
-          path: ${{ runner.temp }}/scan-debug.apk
+          path: ${{ runner.temp }}/scan-app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Fail the job if compilation failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
