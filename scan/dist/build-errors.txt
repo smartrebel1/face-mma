@@ -1,11 +1,12 @@
 > Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/capture/LensController.kt:78:9 Unresolved reference 'removeBubble'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/BlurEditor.kt:59:41 Unresolved reference 'dp'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/HistoryDetailScreen.kt:90:37 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ModelsScreen.kt:259:33 Unresolved reference 'Box'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ModelsScreen.kt:260:37 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:157:52 Unresolved reference 'fallback'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:237:18 Unresolved reference 'app'.
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:49:9 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:51:9 Platform declaration clash: The following declarations have the same JVM signature (setSelectionMode(Ljava/lang/String;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:64:5 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:69:5 Platform declaration clash: The following declarations have the same JVM signature (setSelectionMode(Ljava/lang/String;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:261:9 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:263:9 Platform declaration clash: The following declarations have the same JVM signature (setCompare(Z)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:267:5 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:272:5 Platform declaration clash: The following declarations have the same JVM signature (setCompare(Z)V):
 FAILURE: Build failed with an exception.
 * What went wrong:
 Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction

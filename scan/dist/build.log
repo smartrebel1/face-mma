@@ -33,31 +33,48 @@ Daemon will be stopped at the end of the build
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
-> Task :app:processDebugManifestForPackage
 > Task :app:desugarDebugFileDependencies
-> Task :app:processDebugResources
-> Task :app:checkDebugDuplicateClasses
-> Task :app:kspDebugKotlin
-> Task :app:mergeExtDexDebug
-> Task :app:mergeLibDexDebug
 > Task :app:mergeDebugJniLibFolders
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugNativeLibs
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeLibDexDebug
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so.
 
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:mergeExtDexDebug
+> Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
+> Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/capture/LensController.kt:78:9 Unresolved reference 'removeBubble'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/BlurEditor.kt:59:41 Unresolved reference 'dp'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/HistoryDetailScreen.kt:90:37 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ModelsScreen.kt:259:33 Unresolved reference 'Box'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ModelsScreen.kt:260:37 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:157:52 Unresolved reference 'fallback'.
-e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:237:18 Unresolved reference 'app'.
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:49:9 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+    fun `<set-mode>`(`<set-?>`: AnalysisMode): Unit defined in com.scan.app.ui.HomeViewModel
+    fun setMode(m: AnalysisMode): Unit defined in com.scan.app.ui.HomeViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:51:9 Platform declaration clash: The following declarations have the same JVM signature (setSelectionMode(Ljava/lang/String;)V):
+    fun `<set-selectionMode>`(`<set-?>`: String): Unit defined in com.scan.app.ui.HomeViewModel
+    fun setSelectionMode(id: String): Unit defined in com.scan.app.ui.HomeViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:64:5 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+    fun `<set-mode>`(`<set-?>`: AnalysisMode): Unit defined in com.scan.app.ui.HomeViewModel
+    fun setMode(m: AnalysisMode): Unit defined in com.scan.app.ui.HomeViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:69:5 Platform declaration clash: The following declarations have the same JVM signature (setSelectionMode(Ljava/lang/String;)V):
+    fun `<set-selectionMode>`(`<set-?>`: String): Unit defined in com.scan.app.ui.HomeViewModel
+    fun setSelectionMode(id: String): Unit defined in com.scan.app.ui.HomeViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:261:9 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+    fun `<set-mode>`(`<set-?>`: AnalysisMode): Unit defined in com.scan.app.ui.PreviewViewModel
+    fun setMode(m: AnalysisMode): Unit defined in com.scan.app.ui.PreviewViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:263:9 Platform declaration clash: The following declarations have the same JVM signature (setCompare(Z)V):
+    fun `<set-compare>`(`<set-?>`: Boolean): Unit defined in com.scan.app.ui.PreviewViewModel
+    fun setCompare(v: Boolean): Unit defined in com.scan.app.ui.PreviewViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:267:5 Platform declaration clash: The following declarations have the same JVM signature (setMode(Lcom/scan/app/ai/AnalysisMode;)V):
+    fun `<set-mode>`(`<set-?>`: AnalysisMode): Unit defined in com.scan.app.ui.PreviewViewModel
+    fun setMode(m: AnalysisMode): Unit defined in com.scan.app.ui.PreviewViewModel
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:272:5 Platform declaration clash: The following declarations have the same JVM signature (setCompare(Z)V):
+    fun `<set-compare>`(`<set-?>`: Boolean): Unit defined in com.scan.app.ui.PreviewViewModel
+    fun setCompare(v: Boolean): Unit defined in com.scan.app.ui.PreviewViewModel
 
 [Incubating] Problems report is available at: file:///home/runner/work/face-mma/face-mma/scan/build/reports/problems/problems-report.html
 
@@ -105,35 +122,6 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:com
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
@@ -259,35 +247,6 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
@@ -329,5 +288,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 2m 43s
+BUILD FAILED in 2m 6s
 29 actionable tasks: 29 executed
