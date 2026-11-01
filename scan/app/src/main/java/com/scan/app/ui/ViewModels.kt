@@ -565,7 +565,8 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         total = library.count()
     }
 
-    fun setQuery(q: String) {
+    /** Named updateQuery: a setQuery would clash with the generated setter of [query]. */
+    fun updateQuery(q: String) {
         query = q
         groups = library.groups(q)
     }

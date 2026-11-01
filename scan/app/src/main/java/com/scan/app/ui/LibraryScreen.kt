@@ -75,7 +75,7 @@ fun LibraryScreen(onBack: () -> Unit, onOpenSource: (String) -> Unit) {
 
             OutlinedTextField(
                 value = vm.query,
-                onValueChange = { vm.setQuery(it) },
+                onValueChange = { vm.updateQuery(it) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text(t("ابحث باسم الحساب أو المصدر", "Search account or source")) },
