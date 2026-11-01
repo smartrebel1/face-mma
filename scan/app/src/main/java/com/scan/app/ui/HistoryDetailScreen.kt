@@ -66,6 +66,10 @@ fun HistoryDetailScreen(id: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
     var notes by remember(entity?.id) { mutableStateOf(entity?.notes ?: "") }
     var sourceUrl by remember(entity?.id) { mutableStateOf(entity?.sourceUrl ?: "") }
     var showRaw by remember { mutableStateOf(false) }
+    val disclaimerText = t(
+        "التحليل مساعد وليس إثباتًا نهائيًا، وقد يخطئ.",
+        "Analysis is an aid, not proof, and it can be wrong."
+    )
 
     Scaffold(
         containerColor = ScanColors.Bg,
@@ -87,7 +91,7 @@ fun HistoryDetailScreen(id: Long, onBack: () -> Unit, onDeleted: () -> Unit) {
                                     "SCAN — " + formatDate(e.createdAt),
                                     fullText(e),
                                     e.imagePath,
-                                    t("التحليل مساعد وليس إثباتًا نهائيًا، وقد يخطئ.", "Analysis is an aid, not proof, and it can be wrong.")
+                                    disclaimerText
                                 )
                             }
                             if (file != null) ShareUtils.shareFile(context, file, "application/pdf", "PDF")

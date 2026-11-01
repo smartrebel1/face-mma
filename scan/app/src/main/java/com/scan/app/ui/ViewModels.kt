@@ -154,7 +154,6 @@ class ModelsViewModel(app: Application) : AndroidViewModel(app) {
                         SavedKey(providerId = providerId, key = key, baseUrl = base)
                     )
                     keys = vault.all()
-                    models = models + (saved.id to fallback)
                     lastModelsKeyId = saved.id
                 }
             } catch (e: Exception) {
@@ -234,7 +233,7 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
                 list.forEach { it.imagePath?.let { path -> File(path).delete() } }
                 dao.deleteAll()
             }
-            File(app.filesDir, "history").deleteRecursively()
+            File(getApplication<Application>().filesDir, "history").deleteRecursively()
         }
     }
 }

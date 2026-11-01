@@ -75,7 +75,7 @@ object LensController {
     fun detach() {
         dismissMenu()
         removeOverlay()
-        removeBubble()
+        hideBubble()
         ctx = null
         wm = null
     }
