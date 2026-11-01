@@ -37,7 +37,7 @@
             android:name=".capture.ConsentActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:taskAffinity=""
             android:theme="@style/Theme.Scan.Transparent" />
 

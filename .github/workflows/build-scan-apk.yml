@@ -72,11 +72,29 @@ jobs:
           sha256sum scan/dist/scan-app-debug.apk > scan/dist/sha256.txt
           git config user.name "scan-ci"
           git config user.email "scan-ci@users.noreply.github.com"
-          git add -f scan/dist/scan-app-debug.apk scan/dist/sha256.txt
           rm -f scan/dist/build.log scan/dist/build-errors.txt || true
-          git add -f -A scan/dist/sha256.txt scan/dist/scan-app-debug.apk || true
+          git rm -f --cached --ignore-unmatch scan/dist/build.log scan/dist/build-errors.txt >/dev/null 2>&1 || true
+          git add -f scan/dist/scan-app-debug.apk scan/dist/sha256.txt
           git diff --cached --quiet && exit 0
           git commit -m "ci: publish SCAN debug APK [skip ci]"
+          for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
+
+      - name: Lint
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        working-directory: scan
+        run: ./gradlew --no-daemon :app:lintDebug || true
+
+      - name: Publish lint summary
+        if: steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          python3 scan/tools/lint_summary.py > scan/dist/lint.txt 2>&1 || echo "lint summary failed" > scan/dist/lint.txt
+          git config user.name "scan-ci"
+          git config user.email "scan-ci@users.noreply.github.com"
+          git add -f scan/dist/lint.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: publish lint summary [skip ci]"
           for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
 
       - name: Upload APK artifact

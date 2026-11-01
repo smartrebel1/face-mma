@@ -22,18 +22,19 @@ class ConsentActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val rect = intent.getIntArrayExtra(EXTRA_RECT)
+        val retried = intent.getBooleanExtra(EXTRA_RETRY, false)
         if (savedInstanceState == null && !launched) {
             launched = true
-            requestConsent(rect)
+            requestConsent(rect, retried)
         }
     }
 
-    private fun requestConsent(rect: IntArray?) {
+    private fun requestConsent(rect: IntArray?, retried: Boolean) {
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val launcher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val data = result.data
             if (result.resultCode == RESULT_OK && data != null) {
-                CaptureService.startCapture(this, result.resultCode, data, rect)
+                CaptureService.startCapture(this, result.resultCode, data, rect, retried)
             } else {
                 LensController.restoreBubble()
                 toast(ar("تم إلغاء إذن الالتقاط", "Capture permission denied"))

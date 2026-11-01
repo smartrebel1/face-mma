@@ -128,12 +128,18 @@ class CaptureService : Service() {
         private const val EXTRA_RECT = "rect"
         private const val EXTRA_RETRIED = "retried"
 
-        fun startCapture(ctx: Context, resultCode: Int, data: Intent, rect: IntArray?) {
+        fun startCapture(
+            ctx: Context,
+            resultCode: Int,
+            data: Intent,
+            rect: IntArray?,
+            retried: Boolean = false
+        ) {
             val i = Intent(ctx, CaptureService::class.java)
                 .putExtra(EXTRA_CODE, resultCode)
                 .putExtra(EXTRA_DATA, data)
                 .putExtra(EXTRA_RECT, rect)
-                .putExtra(EXTRA_RETRIED, false)
+                .putExtra(EXTRA_RETRIED, retried)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ctx.startForegroundService(i)
             } else {
