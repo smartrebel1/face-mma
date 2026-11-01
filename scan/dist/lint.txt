@@ -1,7 +1,5 @@
-lint issues: Error=2, Information=4, Warning=26
+lint issues: Information=4, Warning=26
 ---
-Error	MissingPermission	app/capture/CaptureService.kt:167	Call requires permission which may be rejected by user: code should explicitly check to see if permission is available (with `checkPermission`) or explicitly handle a potential `SecurityException`
-Error	MissingPermission	app/capture/CaptureService.kt:178	Call requires permission which may be rejected by user: code should explicitly check to see if permission is available (with `checkPermission`) or explicitly handle a potential `SecurityException`
 Warning	OldTargetApi	app/build.gradle.kts:16	Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details.
 Warning	BatteryLife	app/util/PowerUtils.kt:30	Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html
 Warning	GradleDependency	app/build.gradle.kts:44	A newer version of androidx.compose:compose-bom than 2024.10.01 is available: 2026.09.00
@@ -14,7 +12,7 @@ Warning	GradleDependency	app/build.gradle.kts:58	A newer version of androidx.roo
 Warning	GradleDependency	app/build.gradle.kts:59	A newer version of androidx.room:room-compiler than 2.6.1 is available: 2.8.5
 Warning	GradleDependency	app/build.gradle.kts:60	A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0
 Warning	MutableCollectionMutableState	app/ui/BlurEditor.kt:52	Creating a MutableState object with a mutable collection type
-Warning	ObsoleteSdkInt	app/capture/CaptureService.kt:217	Unnecessary; SDK_INT is always >= 26
+Warning	ObsoleteSdkInt	app/capture/CaptureService.kt:229	Unnecessary; SDK_INT is always >= 26
 Warning	ObsoleteSdkInt	app/capture/LensService.kt:85	Unnecessary; SDK_INT is always >= 26
 Warning	ObsoleteSdkInt	app/util/Notifications.kt:29	Unnecessary; SDK_INT is never < 26
 Warning	ObsoleteSdkInt	app/src/main/res/mipmap-anydpi-v26:	This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.
