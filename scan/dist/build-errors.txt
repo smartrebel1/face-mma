@@ -1,0 +1,7 @@
+> Task :app:compileDebugKotlin FAILED
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:553:9 Platform declaration clash: The following declarations have the same JVM signature (setQuery(Ljava/lang/String;)V):
+e: file:///home/runner/work/face-mma/face-mma/scan/app/src/main/java/com/scan/app/ui/ViewModels.kt:568:5 Platform declaration clash: The following declarations have the same JVM signature (setQuery(Ljava/lang/String;)V):
+FAILURE: Build failed with an exception.
+* What went wrong:
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
