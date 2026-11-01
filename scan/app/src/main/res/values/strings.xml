@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SCAN</string>
+    <string name="lens_channel">عدسة سكان</string>
+    <string name="capture_channel">الالتقاط</string>
+</resources>

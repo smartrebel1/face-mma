@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="scan_bg">#FF0A0E14</color>
+    <color name="scan_icon_bg">#FF0A0E14</color>
+    <color name="scan_accent">#FF22D3EE</color>
+</resources>

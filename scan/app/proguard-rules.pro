@@ -1,0 +1,10 @@
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keepclassmembers class **$$serializer { *; }
+-keepclasseswithmembers class * { @kotlinx.serialization.Serializable <fields>; }
+-keep,includedescriptorclasses class com.scan.app.**$$serializer { *; }
+-keep class com.scan.app.data.** { *; }
+-keep class com.scan.app.ai.** { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**

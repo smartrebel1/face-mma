@@ -1,0 +1,56 @@
+name: Build SCAN APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scan/**"
+      - ".github/workflows/build-scan-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK
+        working-directory: scan
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          find scan -name '*.apk' -path '*outputs*' -print
+          APK="$(find scan -name '*.apk' -path '*outputs/apk/debug*' -print -quit)"
+          test -n "$APK"
+          cp "$APK" "$RUNNER_TEMP/scan-debug.apk"
+          sha256sum "$RUNNER_TEMP/scan-debug.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-debug-apk
+          path: ${{ runner.temp }}/scan-debug.apk
+          if-no-files-found: error
+          retention-days: 30
