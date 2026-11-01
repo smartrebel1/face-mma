@@ -1,1 +1,37 @@
-no lint report found
+lint issues: Error=3, Information=3, Warning=32
+---
+Warning	OldTargetApi	app/build.gradle.kts:16	Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details.
+Warning	BatteryLife	app/util/PowerUtils.kt:30	Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html
+Warning	GradleDependency	app/build.gradle.kts:44	A newer version of androidx.compose:compose-bom than 2024.10.01 is available: 2026.09.00
+Warning	GradleDependency	app/build.gradle.kts:45	A newer version of androidx.core:core-ktx than 1.13.1 is available: 1.19.1
+Warning	GradleDependency	app/build.gradle.kts:46	A newer version of androidx.activity:activity-compose than 1.9.3 is available: 1.13.0
+Warning	GradleDependency	app/build.gradle.kts:47	A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.11.0
+Warning	GradleDependency	app/build.gradle.kts:48	A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.11.0
+Warning	GradleDependency	app/build.gradle.kts:57	A newer version of androidx.room:room-runtime than 2.6.1 is available: 2.8.5
+Warning	GradleDependency	app/build.gradle.kts:58	A newer version of androidx.room:room-ktx than 2.6.1 is available: 2.8.5
+Warning	GradleDependency	app/build.gradle.kts:59	A newer version of androidx.room:room-compiler than 2.6.1 is available: 2.8.5
+Warning	GradleDependency	app/build.gradle.kts:60	A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0
+Warning	MutableCollectionMutableState	app/ui/BlurEditor.kt:52	Creating a MutableState object with a mutable collection type
+Error	ProduceStateDoesNotAssignValue	app/ui/HistoryDetailScreen.kt:254	produceState calls should assign `value` inside the producer lambda
+Error	ProduceStateDoesNotAssignValue	app/ui/HistoryScreen.kt:198	produceState calls should assign `value` inside the producer lambda
+Error	ProduceStateDoesNotAssignValue	app/ui/PreviewActivity.kt:96	produceState calls should assign `value` inside the producer lambda
+Warning	DrawAllocation	app/capture/SelectionOverlayView.kt:104	Avoid object allocations during draw/layout operations (preallocate and reuse instead)
+Warning	DrawAllocation	app/capture/SelectionOverlayView.kt:105	Avoid object allocations during draw/layout operations (preallocate and reuse instead)
+Warning	DrawAllocation	app/capture/SelectionOverlayView.kt:106	Avoid object allocations during draw/layout operations (preallocate and reuse instead)
+Warning	DrawAllocation	app/capture/SelectionOverlayView.kt:107	Avoid object allocations during draw/layout operations (preallocate and reuse instead)
+Warning	ObsoleteSdkInt	app/capture/CaptureService.kt:145	Unnecessary; SDK_INT is always >= 26
+Warning	ObsoleteSdkInt	app/capture/LensService.kt:85	Unnecessary; SDK_INT is always >= 26
+Warning	ObsoleteSdkInt	app/util/Notifications.kt:26	Unnecessary; SDK_INT is never < 26
+Warning	ObsoleteSdkInt	app/src/main/res/mipmap-anydpi-v26:	This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.
+Warning	StaticFieldLeak	app/capture/LensController.kt:30	Do not place Android context classes in static fields (static reference to `LensController` which has field `ctx` pointing to `Context`); this is a memory leak
+Warning	StaticFieldLeak	app/capture/LensController.kt:41	Do not place Android context classes in static fields; this is a memory leak
+Warning	StaticFieldLeak	app/capture/LensController.kt:47	Do not place Android context classes in static fields; this is a memory leak
+Warning	StaticFieldLeak	app/capture/LensController.kt:50	Do not place Android context classes in static fields; this is a memory leak
+Warning	UnusedResources	app/src/main/res/values/colors.xml:5	The resource `R.color.scan_accent` appears to be unused
+Warning	MonochromeLauncherIcon	app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml:2	The application adaptive icon is missing a monochrome tag
+Warning	MonochromeLauncherIcon	app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml:2	The application adaptive roundIcon is missing a monochrome tag
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:112	Custom view ``LensBubbleView`` has `setOnTouchListener` called on it but does not override `performClick`
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:134	`onTouch` lambda should call `View#performClick` when a click is detected
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:447	Custom view ``LinearLayout`` has `setOnTouchListener` called on it but does not override `performClick`
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:447	`onTouch` lambda should call `View#performClick` when a click is detected
+Warning	ClickableViewAccessibility	app/capture/SelectionOverlayView.kt:114	Custom view `SelectionOverlayView` overrides `onTouchEvent` but not `performClick`
