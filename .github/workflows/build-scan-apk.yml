@@ -78,6 +78,7 @@ jobs:
           git config user.email "scan-ci@users.noreply.github.com"
           git rm -f --cached --ignore-unmatch scan/dist/build.log scan/dist/build-errors.txt scan/dist/scan-app-debug.apk >/dev/null 2>&1 || true
           git add -A scan/dist
+          git add -f "scan/dist/SCAN-${VERSION}-debug.apk"
           git diff --cached --quiet && exit 0
           git commit -m "ci: publish SCAN ${VERSION} debug APK [skip ci]"
           for i in 1 2 3; do git push origin "HEAD:${GITHUB_REF_NAME}" && break || sleep 4; done
