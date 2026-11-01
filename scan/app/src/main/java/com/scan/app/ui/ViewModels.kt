@@ -22,8 +22,13 @@ import com.scan.app.ai.Prompts
 import com.scan.app.ai.ProviderRegistry
 import com.scan.app.ai.ar
 import com.scan.app.ai.en
+import com.scan.app.ai.SeriesEngine
+import com.scan.app.ai.SeriesProgress
 import com.scan.app.capture.LensService
+import com.scan.app.data.CaptureRecord
+import com.scan.app.data.CaptureStore
 import com.scan.app.data.HistoryEntity
+import com.scan.app.data.SourceGroup
 import com.scan.app.data.SavedKey
 import com.scan.app.data.SelectedModel
 import com.scan.app.util.ImageUtils
@@ -266,7 +271,12 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
     private val scan = ScanApp.get(app)
     private val store = scan.settings
     private val engine = AnalysisEngine(scan.keys)
+    private val library = CaptureStore.get(app)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /** The archived capture this preview belongs to, so labels land in the library. */
+    var captureId by mutableStateOf<String?>(null)
+        private set
 
     var state by mutableStateOf(PreviewState())
         private set
@@ -284,10 +294,26 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
     var sourceCount by mutableStateOf(0)
         private set
 
+    fun initCapture(id: String?) {
+        captureId = id
+        val record = id?.let { library.byId(it) }
+        if (sourceLabel.isBlank()) {
+            sourceLabel = record?.label?.takeIf { it.isNotBlank() } ?: store.lastSource
+        }
+        refreshSourceCount()
+    }
+
     fun initSource() {
         if (sourceLabel.isNotBlank()) return
         sourceLabel = store.lastSource
         refreshSourceCount()
+    }
+
+    /** Closing the preview without analysing throws the shot away, archive included. */
+    fun discardCapture() {
+        if (state.savedId != null) return
+        val id = captureId ?: return
+        library.remove(id)
     }
 
     fun setSource(text: String) {
@@ -295,8 +321,7 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
         refreshSourceCount()
     }
 
-    private fun normalizeSource(s: String): String =
-        s.trim().lowercase().replace("@", "").replace(" ", "").replace("#", "")
+    private fun normalizeSource(s: String): String = CaptureStore.normalize(s)
 
     private fun refreshSourceCount() {
         val key = normalizeSource(sourceLabel)
@@ -307,7 +332,7 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             sourceCount = withContext(Dispatchers.IO) {
                 try {
-                    scan.db.history().bySource(key, 50).count { it.analysisJson.isNotBlank() }
+                    library.bySource(key).size
                 } catch (e: Exception) {
                     0
                 }
@@ -426,6 +451,13 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
                 val savedId = withContext(Dispatchers.IO) {
                     saveHistory(results, edited, sourcePath, normalizeSource(label))
                 }
+                withContext(Dispatchers.IO) {
+                    val id = captureId
+                    if (id != null) {
+                        library.setLabel(id, label)
+                        library.markAnalyzed(listOf(id), savedId)
+                    }
+                }
                 state = state.copy(busy = false, results = results, savedId = savedId)
                 refreshSourceCount()
             } catch (e: Exception) {
@@ -448,7 +480,18 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
             if (src.exists()) src.copyTo(target, overwrite = true).let { true } else false
         }
         if (!ok) return 0L
-        File(sourcePath).takeIf { it.exists() && it.absolutePath != target.absolutePath }?.delete()
+        val libraryRecord = try {
+            library.byFile(sourcePath)
+        } catch (e: Exception) {
+            null
+        }
+        // Hidden areas must not survive in the archive either: the blurred copy wins there too.
+        if (libraryRecord != null && edited != null) {
+            ImageUtils.savePng(edited, File(libraryRecord.file))
+        }
+        if (libraryRecord == null) {
+            File(sourcePath).takeIf { it.exists() && it.absolutePath != target.absolutePath }?.delete()
+        }
 
         val best = results.firstOrNull { it.ok }?.analysis ?: Analysis()
         val dump = results.joinToString("\n\n") { r ->
@@ -475,6 +518,10 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
             val id = withContext(Dispatchers.IO) {
                 saveHistory(emptyList(), edited, sourcePath, normalizeSource(sourceLabel))
             }
+            withContext(Dispatchers.IO) {
+                val cid = captureId
+                if (cid != null) library.setLabel(cid, sourceLabel)
+            }
             state = state.copy(savedId = id)
         }
     }
@@ -491,6 +538,280 @@ class PreviewViewModel(app: Application) : AndroidViewModel(app) {
             if (a.limits.isNotBlank()) append("الحدود: ").append(a.limits).append("\n")
             a.notes.forEach { append("• ").append(it).append("\n") }
         }.trim()
+    }
+}
+
+/**
+ * The library: every capture the lens ever sent, grouped by the account it belongs to, with a
+ * search box so a name can be found even after thirty shots.
+ */
+class LibraryViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val library = CaptureStore.get(app)
+
+    var query by mutableStateOf("")
+        private set
+    var groups by mutableStateOf<List<SourceGroup>>(emptyList())
+        private set
+    var total by mutableStateOf(0)
+        private set
+
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        groups = library.groups(query)
+        total = library.count()
+    }
+
+    fun setQuery(q: String) {
+        query = q
+        groups = library.groups(q)
+    }
+
+    fun deleteGroup(key: String) {
+        library.removeGroup(key)
+        refresh()
+    }
+}
+
+/**
+ * One account: all of its captures, selectable, analysed together in two passes. This is the
+ * screen the user reaches after searching for a name in the library.
+ */
+class SourceViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val scan = ScanApp.get(app)
+    private val store = scan.settings
+    private val library = CaptureStore.get(app)
+    private val engine = SeriesEngine(scan.keys)
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    var sourceKey by mutableStateOf("")
+        private set
+    var label by mutableStateOf("")
+        private set
+    var captures by mutableStateOf<List<CaptureRecord>>(emptyList())
+        private set
+    var selected by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    var mode by mutableStateOf(AnalysisMode.from(store.lastModeUsed))
+        private set
+    var compare by mutableStateOf(store.selectionMode == "compare")
+        private set
+
+    var busy by mutableStateOf(false)
+        private set
+    var info by mutableStateOf("")
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var results by mutableStateOf<List<ModelResult>>(emptyList())
+        private set
+    var showSheet by mutableStateOf(false)
+        private set
+    var savedId by mutableStateOf<Long?>(null)
+        private set
+
+    fun load(key: String) {
+        if (key == sourceKey && captures.isNotEmpty()) return
+        sourceKey = key
+        refresh()
+    }
+
+    fun refresh() {
+        val list = library.bySource(sourceKey)
+        captures = list
+        label = list.firstOrNull { it.label.isNotBlank() }?.label
+            ?: if (sourceKey.isBlank()) "" else sourceKey
+        selected = list.map { it.id }.toSet()
+    }
+
+    fun toggle(id: String) {
+        selected = if (id in selected) selected - id else selected + id
+    }
+
+    fun selectAll() {
+        selected = captures.map { it.id }.toSet()
+    }
+
+    fun clearSelection() {
+        selected = emptySet()
+    }
+
+    fun chooseMode(m: AnalysisMode) {
+        mode = m
+        store.lastModeUsed = m.id
+    }
+
+    fun chooseCompare(v: Boolean) {
+        compare = v
+        store.selectionMode = if (v) "compare" else "single"
+    }
+
+    fun dismissSheet() {
+        showSheet = false
+    }
+
+    fun clearError() {
+        error = null
+    }
+
+    fun renameGroup(text: String) {
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+        library.renameGroup(sourceKey, clean)
+        label = clean
+        store.lastSource = clean
+        sourceKey = CaptureStore.normalize(clean)
+        refresh()
+    }
+
+    fun deleteSelected() {
+        val ids = selected.toList()
+        if (ids.isEmpty()) return
+        library.removeMany(ids)
+        refresh()
+    }
+
+    /** Reads every selected capture off the device and runs the two-pass series analysis. */
+    fun analyze() {
+        val chosen = captures.filter { it.id in selected }
+        val models = store.selectedModels
+        if (chosen.isEmpty()) {
+            error = if (store.lang == Lang.AR) "اختر لقطة واحدة على الأقل." else "Pick at least one capture."
+            return
+        }
+        if (models.isEmpty()) {
+            error = if (store.lang == Lang.AR) {
+                "لم تختر أي موديل. أضف مفتاحًا واختر موديلًا من «الموديلات والمفاتيح»."
+            } else {
+                "No model selected. Add a key and pick a model in Models & Keys."
+            }
+            showSheet = true
+            return
+        }
+        if (busy) return
+        busy = true
+        error = null
+        results = emptyList()
+        info = if (store.lang == Lang.AR) "جارٍ تجهيز اللقطات…" else "Preparing captures…"
+        showSheet = true
+
+        viewModelScope.launch {
+            try {
+                val images = withContext(Dispatchers.IO) {
+                    chosen.mapNotNull { rec ->
+                        val bmp = ImageUtils.loadSampled(rec.file, 1400) ?: return@mapNotNull null
+                        val b64 = ImageUtils.toJpegBase64(bmp, 1100, 80)
+                        bmp.recycle()
+                        b64
+                    }
+                }
+                if (images.isEmpty()) {
+                    busy = false
+                    info = ""
+                    error = if (store.lang == Lang.AR) {
+                        "تعذّر قراءة صور اللقطات المختارة."
+                    } else {
+                        "The selected captures could not be read."
+                    }
+                    return@launch
+                }
+
+                val lang = store.lang
+                val outs = engine.analyzeSeries(
+                    models = models,
+                    imagesJpegBase64 = images,
+                    lang = lang,
+                    mode = mode,
+                    custom = store.customInstruction,
+                    label = label,
+                    compare = compare,
+                    fallback = store.fallbackEnabled
+                ) { p: SeriesProgress -> publishProgress(p, images.size) }
+
+                val anyOk = outs.any { it.ok }
+                if (!anyOk) {
+                    val first = outs.firstOrNull()
+                    busy = false
+                    info = ""
+                    results = outs
+                    error = first?.errorKind?.let { k -> if (lang == Lang.AR) k.ar() else k.en() }
+                        ?: if (lang == Lang.AR) "لم تنجح أي محاولة." else "Every attempt failed."
+                    return@launch
+                }
+
+                val id = withContext(Dispatchers.IO) {
+                    val saved = saveRun(chosen, outs)
+                    library.markAnalyzed(chosen.map { it.id }, saved)
+                    saved
+                }
+                if (label.isNotBlank()) store.lastSource = label
+                savedId = id
+                results = outs
+                busy = false
+                info = ""
+            } catch (e: Exception) {
+                busy = false
+                info = ""
+                error = e.message ?: "error"
+            }
+        }
+    }
+
+    private fun publishProgress(p: SeriesProgress, images: Int) {
+        val text = if (store.lang == Lang.AR) {
+            if (p.note == "final") {
+                "تجميع النتيجة النهائية من $images لقطة…"
+            } else {
+                "قراءة اللقطات: دفعة ${p.done} من ${p.total - 1}…"
+            }
+        } else {
+            if (p.note == "final") {
+                "Building the final result from $images captures…"
+            } else {
+                "Reading captures: batch ${p.done} of ${p.total - 1}…"
+            }
+        }
+        viewModelScope.launch(Dispatchers.Main) { info = text }
+    }
+
+    /** Keeps a copy of one capture next to the analysis so history deletion cannot eat the archive. */
+    private suspend fun saveRun(chosen: List<CaptureRecord>, results: List<ModelResult>): Long {
+        val dir = File(scan.filesDir, "history").apply { mkdirs() }
+        val target = File(dir, "series_${System.currentTimeMillis()}.png")
+        val imagePath: String? = try {
+            File(chosen.first().file).copyTo(target, overwrite = true)
+            target.absolutePath
+        } catch (e: Exception) {
+            null
+        }
+        val best = results.firstOrNull { it.ok }?.analysis ?: Analysis()
+        val dump = results.joinToString("\n\n") { r ->
+            val head = "${r.sel.label} (${ProviderRegistry.name(r.sel.providerId, store.lang)})"
+            if (r.ok) "$head\n${PreviewViewModel.formatAnalysis(r.analysis ?: Analysis())}"
+            else "$head\n⚠ ${r.errorKind?.let { k -> if (store.lang == Lang.AR) k.ar() else k.en() } ?: ""}"
+        }
+        val shownName = label.ifBlank { if (store.lang == Lang.AR) "بدون مصدر" else "no source" }
+        val titleText = if (store.lang == Lang.AR) {
+            "تحليل " + chosen.size + " لقطة — " + shownName
+        } else {
+            chosen.size.toString() + " captures — " + shownName
+        }
+        val entity = HistoryEntity(
+            createdAt = System.currentTimeMillis(),
+            imagePath = imagePath,
+            mode = mode.id,
+            models = results.joinToString(", ") { it.sel.label },
+            analysisJson = json.encodeToString(Analysis.serializer(), best),
+            rawText = dump,
+            title = titleText,
+            sourceKey = sourceKey
+        )
+        return scan.db.history().insert(entity)
     }
 }
 

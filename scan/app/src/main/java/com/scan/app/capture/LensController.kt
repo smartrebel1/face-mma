@@ -473,6 +473,7 @@ object LensController {
             return tv
         }
 
+        item(ar("المكتبة", "Library")) { openApp(MainActivity.EXTRA_SCREEN_LIBRARY) }
         item(ar("السجل", "History")) { openApp(MainActivity.EXTRA_SCREEN_HISTORY) }
         item(ar("الإعدادات", "Settings")) { openApp(MainActivity.EXTRA_SCREEN_SETTINGS) }
         item(ar("إغلاق العدسة", "Close lens")) {

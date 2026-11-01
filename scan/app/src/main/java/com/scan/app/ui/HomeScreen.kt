@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +57,7 @@ import com.scan.app.util.PowerUtils
 fun HomeScreen(
     onOpenModels: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAbout: () -> Unit
 ) {
@@ -88,6 +90,9 @@ fun HomeScreen(
             ScanTopBar(
                 title = "SCAN",
                 actions = {
+                    IconButton(onClick = onOpenLibrary) {
+                        Icon(Icons.Filled.Search, contentDescription = t("المكتبة", "Library"))
+                    }
                     IconButton(onClick = onOpenHistory) {
                         Icon(Icons.Filled.List, contentDescription = t("السجل", "History"))
                     }
@@ -175,6 +180,26 @@ fun HomeScreen(
                         }
                     )
                 }
+            }
+
+            // ---- library entry point
+            Spacer(Modifier.height(14.dp))
+            SectionTitle(t("المكتبة", "Library"))
+            CardBox {
+                Text(
+                    t(
+                        "كل لقطة تُحفظ تلقائيًا، مجموعة بحسب اسم الحساب. ابحث عن اسم ثم حلّل كل لقطاته معًا.",
+                        "Every capture is archived automatically and grouped by account. Search a name, then analyse all of its captures together."
+                    ),
+                    color = ScanColors.TextDim,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton(
+                    text = t("افتح المكتبة وابحث باسم حساب", "Open the library and search a name"),
+                    onClick = onOpenLibrary
+                )
             }
 
             // ---- capture settings

@@ -55,31 +55,35 @@ class AnthropicProvider : AiProvider {
         AiModel("claude-3-5-haiku-latest", "Claude 3.5 Haiku")
     )
 
-    override suspend fun analyzeImage(
+    override suspend fun analyzeImages(
         model: String,
         key: String,
         baseUrl: String?,
-        jpegBase64: String,
+        imagesJpegBase64: List<String>,
         systemPrompt: String,
-        userPrompt: String
+        userPrompt: String,
+        maxTokens: Int
     ): String = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
             put("model", model)
-            put("max_tokens", 2400)
+            put("max_tokens", maxTokens)
             put("temperature", 0.2)
             put("system", systemPrompt)
             put("messages", buildJsonArray {
                 add(buildJsonObject {
                     put("role", "user")
                     put("content", buildJsonArray {
-                        add(buildJsonObject {
-                            put("type", "image")
-                            put("source", buildJsonObject {
-                                put("type", "base64")
-                                put("media_type", "image/jpeg")
-                                put("data", jpegBase64)
+                        // Anthropic wants images before the text block.
+                        imagesJpegBase64.forEach { b64 ->
+                            add(buildJsonObject {
+                                put("type", "image")
+                                put("source", buildJsonObject {
+                                    put("type", "base64")
+                                    put("media_type", "image/jpeg")
+                                    put("data", b64)
+                                })
                             })
-                        })
+                        }
                         add(buildJsonObject {
                             put("type", "text")
                             put("text", userPrompt)

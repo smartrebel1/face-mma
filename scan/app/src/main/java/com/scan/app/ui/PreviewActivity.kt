@@ -123,10 +123,14 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     var brushFraction by remember { mutableStateOf(0.06f) }
     val models = remember { vm.selectedModels() }
 
-    LaunchedEffect(Unit) { vm.initSource() }
+    LaunchedEffect(path) {
+        val id = com.scan.app.data.CaptureStore.get(context).byFile(path)?.id
+        vm.initCapture(id)
+    }
 
     fun closeAndDiscard() {
         if (state.savedId == null) {
+            vm.discardCapture()
             val f = File(path)
             if (f.exists()) f.delete()
         }
@@ -238,6 +242,16 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
                     color = if (vm.sourceCount >= 2) ScanColors.Ok else ScanColors.TextDim,
                     fontSize = 11.sp,
                     lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    t(
+                        "تُوسم اللقطة تلقائيًا بآخر مصدر استخدمته، والتسمية هي التي تجمع اللقطات في المكتبة. غيّرها إن كان الشخص مختلفًا.",
+                        "The shot is tagged with the last source you used, and that label is what groups captures in the library. Change it for a different person."
+                    ),
+                    color = ScanColors.TextDim.copy(alpha = 0.75f),
+                    fontSize = 10.sp,
+                    lineHeight = 15.sp
                 )
 
                 Spacer(Modifier.height(14.dp))

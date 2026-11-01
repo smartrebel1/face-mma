@@ -81,6 +81,112 @@ object Prompts {
         return "$head\n\n$body$extra$history"
     }
 
+    /**
+     * Pass 1 of a series: the model looks at one batch of captures and writes a compact, plain-text
+     * digest per screenshot so pass 2 can reason over 30 captures without 30 images in one call.
+     */
+    fun batch(
+        batchIndex: Int,
+        batchCount: Int,
+        imagesInBatch: Int,
+        lang: Lang,
+        label: String,
+        totalImages: Int
+    ): String {
+        val shown = label.ifBlank { if (lang == Lang.AR) "غير محدد" else "unknown" }
+        return if (lang == Lang.AR) {
+            "أنت تمرّر لقطات شاشة لحساب واحد اسمه «" + shown + "».\n" +
+                "هذه الدفعة " + (batchIndex + 1) + " من " + batchCount +
+                " وتحتوي " + imagesInBatch + " لقطة من إجمالي " + totalImages + " لقطة.\n\n" +
+                "لكل لقطة بالترتيب، اكتب ٤ إلى ٦ أسطر فقط بهذا الشكل:\n" +
+                "[لقطة " + (batchIndex + 1) + ".١] الحساب الظاهر / المنصة / التاريخ إن وُجد | موضوع المنشور | " +
+                "النص المهم حرفيًا (مقتبصًا وقصيرًا) | النبرة | هل الكلام لصاحب الحساب أم اقتباس/سخرية؟ | أي إشارة تستحق الملاحظة.\n\n" +
+                "قواعد: لا حكم نهائي على الشخص، لا تشخيص نفسي، لا تخمين لما لا يظهر. " +
+                "إن كانت لقطة غير واضحة اكتب «غير واضحة» واذكر ما ينقص. نص عادي فقط بدون JSON وبدون مقدمات."
+        } else {
+            "You are reading screenshots of one account named \"" + shown + "\".\n" +
+                "This is batch " + (batchIndex + 1) + " of " + batchCount + " with " + imagesInBatch +
+                " of " + totalImages + " captures total.\n\n" +
+                "For each capture in order write 4-6 lines only:\n" +
+                "[capture " + (batchIndex + 1) + ".1] visible account / platform / date if any | topic | " +
+                "the important text verbatim (short quote) | tone | is it the account owner's own claim or a quote/sarcasm? | anything notable.\n\n" +
+                "Rules: no final verdict about the person, no psychological diagnosis, never guess what is not visible. " +
+                "If a capture is unclear write \"unclear\" and say what is missing. Plain text only, no JSON, no preamble."
+        }
+    }
+
+    fun series(
+        lang: Lang,
+        mode: AnalysisMode,
+        custom: String,
+        label: String,
+        captureCount: Int,
+        digests: String
+    ): String {
+        val shown = label.ifBlank { if (lang == Lang.AR) "غير محدد" else "unknown" }
+        val modeLine = when (mode) {
+            AnalysisMode.GENERAL -> if (lang == Lang.AR) {
+                "أجرِ التحليل الكامل بالطبقات الأربع على مستوى السلسلة كلها."
+            } else {
+                "Run the full four-layer analysis across the whole series."
+            }
+
+            AnalysisMode.TEXT_ONLY -> if (lang == Lang.AR) {
+                "اجمع أهم النصوص الظاهرة في اللقطات في observed، واترك بقية الطبقات مختصرة."
+            } else {
+                "Collect the key visible texts in observed and keep the other layers short."
+            }
+
+            AnalysisMode.TRANSLATE -> if (lang == Lang.AR) {
+                "اجمع النصوص المهمة في observed وترجمها (عربي/إنجليزي) مع الحفاظ على اللهجة."
+            } else {
+                "Collect the key texts in observed and translate them (Arabic/English) keeping the dialect."
+            }
+
+            AnalysisMode.TONE -> if (lang == Lang.AR) {
+                "ركّز على النبرة والمشاعر وتطورها بين اللقطات، بقرائن لغوية فقط ودون أي تشخيص نفسي."
+            } else {
+                "Focus on tone and sentiment and how they shift across captures: linguistic evidence only, no diagnosis."
+            }
+
+            AnalysisMode.VERIFY -> if (lang == Lang.AR) {
+                "اقترح خطوات تحقق عملية مما يظهر في السلسلة، وضعها في notes دون حكم."
+            } else {
+                "Suggest practical verification steps from the series and put them in notes, no verdict."
+            }
+        }
+        val extra = if (custom.isBlank()) "" else if (lang == Lang.AR) {
+            "\nتعليمات إضافية من المستخدم (اتبعها ما لم تخالف القواعد الصارمة): " + custom
+        } else {
+            "\nExtra user instruction (follow unless it breaks the hard rules): " + custom
+        }
+        return if (lang == Lang.AR) {
+            "لديك " + captureCount + " لقطة شاشة محفوظة للحساب «" + shown + "» التقطها المستخدم بنفسه.\n" +
+                "فيما يلي ملخص كل دفعة (كل سطر يخص لقطة). استخدمها كأدلة فقط، ولا تخترع ما ليس فيها.\n\n" +
+                digests + "\n\n" +
+                modeLine + extra + "\n\n" +
+                "المطلوب الآن تحليل السلسلة ككل بـ JSON فقط بنفس الشكل المتفق عليه:\n" +
+                "• observed: وصف المحتوى المتكرر عبر اللقطات (الموضوعات، الأسلوب، عبارات متكررة، اسم الحساب والمنصة والفترة الزمنية إن ظهرت).\n" +
+                "• classification: الموضوع الغالب والنبرة الغالبة.\n" +
+                "• pattern: مطلوب هنا نمط حقيقي مبني على الأدلة — ما يتكرر، ما يتناقض، ما يتطور مع الوقت — مع ذكر رقم اللقطة في الدليل. " +
+                "لا تكتب «لا توجد أدلة كافية» إلا إذا كان عدد اللقطات القابلة للقراءة أقل من ٣ فعلاً، وحينها اذكر بالضبط ما ينقص.\n" +
+                "• inference: قراءة محتملة حذرة + درجة ثقة + حدود الاستنتاج.\n" +
+                "• notes: ما يجب التحقق منه وما لا يمكن استنتاجه."
+        } else {
+            "You have " + captureCount + " screenshots of the account \"" + shown + "\" captured by the user.\n" +
+                "Below are per-batch digests (one line per capture). Use them as evidence only, never invent.\n\n" +
+                digests + "\n\n" +
+                modeLine + extra + "\n\n" +
+                "Now analyse the whole series, JSON only, same shape as agreed:\n" +
+                "• observed: recurring content across the captures (topics, style, repeated phrases, account/platform/date range when visible).\n" +
+                "• classification: dominant topic and tone.\n" +
+                "• pattern: a real, evidence-based pattern — what repeats, what contradicts, what shifts over time — citing the capture number. " +
+                "Only write \"Not enough evidence\" when fewer than 3 captures are actually readable, and then say exactly what is missing.\n" +
+                "• inference: cautious reading + confidence + limits.\n" +
+                "• notes: what to verify and what cannot be concluded."
+        }
+    }
+
     private val SYSTEM_AR = """
 أنت مساعد لتحليل محتوى عام على وسائل التواصل الاجتماعي. تساعد المستخدم على فهم لقطة شاشة صوّرها بنفسه، ولست جهة حكم على أي شخص.
 

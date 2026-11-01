@@ -61,7 +61,22 @@ interface AiProvider {
     /** Validates the key and returns image-capable models. Throws [AiException]. */
     suspend fun listModels(key: String, baseUrl: String? = null): List<AiModel>
 
-    /** Sends the image (base64 JPEG) plus prompts and returns the model's text answer. */
+    /**
+     * Sends one or more images (base64 JPEG) plus prompts and returns the model's text answer.
+     * An empty list means a text-only turn, which is how a whole series is summarised after the
+     * per-batch pass.
+     */
+    suspend fun analyzeImages(
+        model: String,
+        key: String,
+        baseUrl: String?,
+        imagesJpegBase64: List<String>,
+        systemPrompt: String,
+        userPrompt: String,
+        maxTokens: Int = 2400
+    ): String
+
+    /** Convenience wrapper for the single-screenshot flow. */
     suspend fun analyzeImage(
         model: String,
         key: String,
@@ -69,5 +84,5 @@ interface AiProvider {
         jpegBase64: String,
         systemPrompt: String,
         userPrompt: String
-    ): String
+    ): String = analyzeImages(model, key, baseUrl, listOf(jpegBase64), systemPrompt, userPrompt)
 }

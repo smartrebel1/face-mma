@@ -117,19 +117,20 @@ class OpenAiCompatProvider(
         )
     }
 
-    override suspend fun analyzeImage(
+    override suspend fun analyzeImages(
         model: String,
         key: String,
         baseUrl: String?,
-        jpegBase64: String,
+        imagesJpegBase64: List<String>,
         systemPrompt: String,
-        userPrompt: String
+        userPrompt: String,
+        maxTokens: Int
     ): String = withContext(Dispatchers.IO) {
         val base = baseOf(baseUrl)
         val payload = buildJsonObject {
             put("model", model)
             put("temperature", 0.2)
-            put("max_tokens", 2400)
+            put("max_tokens", maxTokens)
             put("messages", buildJsonArray {
                 add(buildJsonObject {
                     put("role", "system")
@@ -142,12 +143,15 @@ class OpenAiCompatProvider(
                             put("type", "text")
                             put("text", userPrompt)
                         })
-                        add(buildJsonObject {
-                            put("type", "image_url")
-                            put("image_url", buildJsonObject {
-                                put("url", "data:image/jpeg;base64,$jpegBase64")
+                        // A batch of captures goes out as several image_url parts.
+                        imagesJpegBase64.forEach { b64 ->
+                            add(buildJsonObject {
+                                put("type", "image_url")
+                                put("image_url", buildJsonObject {
+                                    put("url", "data:image/jpeg;base64,$b64")
+                                })
                             })
-                        })
+                        }
                     })
                 })
             })

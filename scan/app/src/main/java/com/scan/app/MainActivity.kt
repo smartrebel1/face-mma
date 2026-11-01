@@ -19,11 +19,13 @@ import com.scan.app.ui.AboutScreen
 import com.scan.app.ui.HistoryDetailScreen
 import com.scan.app.ui.HistoryScreen
 import com.scan.app.ui.HomeScreen
+import com.scan.app.ui.LibraryScreen
 import com.scan.app.ui.ModelsScreen
 import com.scan.app.ui.OnboardingScreen
 import com.scan.app.ui.ScanColors
 import com.scan.app.ui.ScanTheme
 import com.scan.app.ui.SettingsScreen
+import com.scan.app.ui.SourceScreen
 import com.scan.app.util.Retention
 
 class MainActivity : ComponentActivity() {
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SCREEN_HISTORY = "history"
         const val EXTRA_SCREEN_SETTINGS = "settings"
         const val EXTRA_SCREEN_MODELS = "models"
+        const val EXTRA_SCREEN_LIBRARY = "library"
     }
 }
 
@@ -59,10 +62,13 @@ private fun AppRoot(pending: String?, consumePending: () -> Unit) {
     var onboarded by remember { mutableStateOf(scan.settings.onboardingDone) }
     var screen by remember { mutableStateOf(if (onboarded) "home" else "onboarding") }
     var detailId by remember { mutableLongStateOf(-1L) }
+    var sourceKey by remember { mutableStateOf("") }
 
     LaunchedEffect(pending) {
         if (!pending.isNullOrBlank()) {
-            if (pending == "history" || pending == "settings" || pending == "models") {
+            if (pending == "history" || pending == "settings" || pending == "models" ||
+                pending == "library"
+            ) {
                 if (onboarded) screen = pending
             }
             consumePending()
@@ -112,9 +118,23 @@ private fun AppRoot(pending: String?, consumePending: () -> Unit) {
 
                 "about" -> AboutScreen(onBack = { screen = "settings" })
 
+                "library" -> LibraryScreen(
+                    onBack = { screen = "home" },
+                    onOpenSource = { key ->
+                        sourceKey = key
+                        screen = "source"
+                    }
+                )
+
+                "source" -> SourceScreen(
+                    sourceKey = sourceKey,
+                    onBack = { screen = "library" }
+                )
+
                 else -> HomeScreen(
                     onOpenModels = { screen = "models" },
                     onOpenHistory = { screen = "history" },
+                    onOpenLibrary = { screen = "library" },
                     onOpenSettings = { screen = "settings" },
                     onOpenAbout = { screen = "about" }
                 )
@@ -126,6 +146,7 @@ private fun AppRoot(pending: String?, consumePending: () -> Unit) {
         screen = when (screen) {
             "detail" -> "history"
             "about" -> "settings"
+            "source" -> "library"
             else -> "home"
         }
     }

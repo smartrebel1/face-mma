@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.scan.app.Lang
 import com.scan.app.ScanApp
+import com.scan.app.data.CaptureStore
 import com.scan.app.ui.PreviewActivity
 import com.scan.app.util.ImageUtils
 import com.scan.app.util.Notifications
@@ -100,12 +101,22 @@ class CaptureService : Service() {
                 if (!ImageUtils.savePng(bmp, file)) throw IllegalStateException("cannot write screenshot")
                 bmp.recycle()
 
+                // The lens only captures; the app archives the shot right away, tagged with the
+                // last source used so consecutive shots of one person stay in one group.
+                val record = try {
+                    CaptureStore.get(this@CaptureService)
+                        .add(file, ScanApp.get(this@CaptureService).settings.lastSource)
+                } catch (e: Exception) {
+                    null
+                }
+                val shotPath = record?.file ?: file.absolutePath
+
                 // 1) Always leave a tappable notification, 2) then try to open the preview.
                 //    If the activity start is blocked, the notification is the way in.
-                notifyReady(file.absolutePath)
+                notifyReady(shotPath)
                 Handler(Looper.getMainLooper()).post {
                     try {
-                        PreviewActivity.start(this@CaptureService, file.absolutePath)
+                        PreviewActivity.start(this@CaptureService, shotPath)
                     } catch (e: Exception) {
                         // fallback: the notification posted above
                     }

@@ -16,6 +16,11 @@ object Retention {
         val dao = app.db.history()
         withContext(Dispatchers.IO) {
             try {
+                com.scan.app.data.CaptureStore.get(app).purgeOlderThan(days)
+            } catch (e: Exception) {
+                // never let retention crash the app
+            }
+            try {
                 dao.olderThan(cutoff).forEach { item ->
                     val path = item.imagePath ?: return@forEach
                     File(path).delete()

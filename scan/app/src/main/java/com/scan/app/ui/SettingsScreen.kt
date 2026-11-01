@@ -281,6 +281,8 @@ private fun wipeEverything(context: Context) {
             dao.deleteAll()
             File(context.filesDir, "history").deleteRecursively()
             File(context.filesDir, "shots").deleteRecursively()
+            com.scan.app.data.CaptureStore.get(context).removeAll()
+            File(context.filesDir, "library").deleteRecursively()
         }
     }
 }

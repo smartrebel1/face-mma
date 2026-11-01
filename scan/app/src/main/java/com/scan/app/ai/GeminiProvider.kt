@@ -55,13 +55,14 @@ class GeminiProvider : AiProvider {
         AiModel("gemini-1.5-pro", "Gemini 1.5 Pro")
     )
 
-    override suspend fun analyzeImage(
+    override suspend fun analyzeImages(
         model: String,
         key: String,
         baseUrl: String?,
-        jpegBase64: String,
+        imagesJpegBase64: List<String>,
         systemPrompt: String,
-        userPrompt: String
+        userPrompt: String,
+        maxTokens: Int
     ): String = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
             put("systemInstruction", buildJsonObject {
@@ -72,18 +73,21 @@ class GeminiProvider : AiProvider {
                     put("role", "user")
                     put("parts", buildJsonArray {
                         add(buildJsonObject { put("text", userPrompt) })
-                        add(buildJsonObject {
-                            put("inline_data", buildJsonObject {
-                                put("mime_type", "image/jpeg")
-                                put("data", jpegBase64)
+                        // One image part per capture: the model sees the whole series at once.
+                        imagesJpegBase64.forEach { b64 ->
+                            add(buildJsonObject {
+                                put("inline_data", buildJsonObject {
+                                    put("mime_type", "image/jpeg")
+                                    put("data", b64)
+                                })
                             })
-                        })
+                        }
                     })
                 })
             })
             put("generationConfig", buildJsonObject {
                 put("temperature", 0.2)
-                put("maxOutputTokens", 2400)
+                put("maxOutputTokens", maxTokens)
             })
         }
         val body = Http.postJson(
