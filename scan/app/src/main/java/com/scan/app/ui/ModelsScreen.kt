@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,8 @@ fun ModelsScreen(onBack: () -> Unit) {
     var showKey by remember { mutableStateOf(false) }
     var providerOverride by remember { mutableStateOf<String?>(null) }
     var baseUrl by remember { mutableStateOf("") }
+
+    LaunchedEffect(vm.keys.size) { vm.ensureModelsLoaded() }
 
     val detection = remember(keyText) { KeyDetector.detect(keyText) }
     val effectiveProvider = providerOverride ?: detection.providerId
@@ -215,7 +218,7 @@ fun ModelsScreen(onBack: () -> Unit) {
                             Icon(
                                 Icons.Filled.Refresh,
                                 contentDescription = t("تحديث الموديلات", "Refresh models"),
-                                tint = ScanColors.TextDim
+                                tint = if (vm.loadingModels) ScanColors.Accent else ScanColors.TextDim
                             )
                         }
                         IconButton(onClick = { vm.deleteKey(saved.id) }) {
@@ -231,10 +234,14 @@ fun ModelsScreen(onBack: () -> Unit) {
                     if (list.isEmpty()) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            t(
-                                "اضغط زر التحديث لجلب موديلات هذا المفتاح.",
-                                "Tap refresh to load this key's models."
-                            ),
+                            if (vm.loadingModels) {
+                                t("جارٍ جلب الموديلات…", "Loading models…")
+                            } else {
+                                t(
+                                    "اضغط زر التحديث لجلب موديلات هذا المفتاح.",
+                                    "Tap refresh to load this key's models."
+                                )
+                            },
                             color = ScanColors.TextDim,
                             fontSize = 12.sp
                         )

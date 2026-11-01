@@ -272,7 +272,23 @@ object LensController {
         val cancel = pillButton(c, ar("إلغاء", "Cancel"), 0x33FFFFFF, Color.WHITE)
         val capture = pillButton(c, ar("التقاط", "Capture"), 0xFF22D3EE.toInt(), 0xFF04202A.toInt())
 
-        val bar = LinearLayout(c).apply {
+        // A quick "one model / compare" chip before capturing, as asked.
+        val store = ScanApp.get(c).settings
+        val modeChip = pillButton(
+            c,
+            if (store.selectionMode == "compare") ar("مقارنة", "Compare") else ar("موديل واحد", "One model"),
+            0xCC121821.toInt(),
+            0xFF22D3EE.toInt()
+        ).apply {
+            textSize = 12f
+            setPadding(dp(16f), dp(8f), dp(16f), dp(8f))
+            setOnClickListener {
+                store.selectionMode = if (store.selectionMode == "compare") "single" else "compare"
+                text = if (store.selectionMode == "compare") ar("مقارنة", "Compare") else ar("موديل واحد", "One model")
+            }
+        }
+
+        val actions = LinearLayout(c).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             addView(cancel)
@@ -280,6 +296,16 @@ object LensController {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { marginStart = dp(12f) })
+        }
+
+        val bar = LinearLayout(c).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(modeChip, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10f) })
+            addView(actions)
         }
         container.addView(
             bar,

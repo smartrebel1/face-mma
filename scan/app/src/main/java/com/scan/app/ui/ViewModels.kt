@@ -94,6 +94,9 @@ class ModelsViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var lastModelsKeyId by mutableStateOf<String?>(null)
         private set
+    var loadingModels by mutableStateOf(false)
+        private set
+    private val queried = mutableSetOf<String>()
 
     fun clearMessages() {
         status = null
@@ -164,9 +167,20 @@ class ModelsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Loads model lists for every saved key once, so a saved key still shows its models. */
+    fun ensureModelsLoaded() {
+        keys.forEach { k ->
+            if (k.id !in queried && models[k.id].isNullOrEmpty()) {
+                queried.add(k.id)
+                loadModels(k.id)
+            }
+        }
+    }
+
     fun loadModels(keyId: String) {
         val saved = vault.byId(keyId) ?: return
-        busy = true
+        queried.add(keyId)
+        loadingModels = true
         viewModelScope.launch {
             try {
                 val list = withContext(Dispatchers.IO) {
@@ -177,7 +191,7 @@ class ModelsViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: AiException) {
                 error = if (store.lang == Lang.AR) e.kind.ar() else e.kind.en()
             } finally {
-                busy = false
+                loadingModels = false
             }
         }
     }

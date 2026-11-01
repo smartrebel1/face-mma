@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SCREEN = "extra_screen"
         const val EXTRA_SCREEN_HISTORY = "history"
         const val EXTRA_SCREEN_SETTINGS = "settings"
+        const val EXTRA_SCREEN_MODELS = "models"
     }
 }
 
@@ -61,7 +62,7 @@ private fun AppRoot(pending: String?, consumePending: () -> Unit) {
 
     LaunchedEffect(pending) {
         if (!pending.isNullOrBlank()) {
-            if (pending == "history" || pending == "settings") {
+            if (pending == "history" || pending == "settings" || pending == "models") {
                 if (onboarded) screen = pending
             }
             consumePending()

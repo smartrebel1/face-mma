@@ -78,7 +78,9 @@ class CaptureService : Service() {
                 val file = File(dir, "shot_${System.currentTimeMillis()}.png")
                 if (!ImageUtils.savePng(bmp, file)) throw IllegalStateException("cannot write screenshot")
                 bmp.recycle()
-                PreviewActivity.start(this@CaptureService, file.absolutePath)
+                Handler(Looper.getMainLooper()).post {
+                    PreviewActivity.start(this@CaptureService, file.absolutePath)
+                }
             } catch (e: ScreenCapture.CaptureError) {
                 if (e.kind == ScreenCapture.CaptureError.Kind.PERMISSION && !retried) {
                     // Expired or one-shot token: ask once more, silently.

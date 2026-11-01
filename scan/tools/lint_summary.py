@@ -7,6 +7,8 @@ import xml.etree.ElementTree as ET
 CANDIDATES = [
     "app/build/reports/lint-results-debug.xml",
     "app/build/reports/lint-results.xml",
+    "scan/app/build/reports/lint-results-debug.xml",
+    "scan/app/build/reports/lint-results.xml",
 ]
 
 path = next((p for p in CANDIDATES if os.path.exists(p)), None)

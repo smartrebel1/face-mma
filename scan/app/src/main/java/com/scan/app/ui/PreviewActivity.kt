@@ -105,6 +105,8 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     var brushFraction by remember { mutableStateOf(0.06f) }
     val models = remember { vm.selectedModels() }
 
+    androidx.activity.compose.BackHandler { closeAndDiscard() }
+
     fun closeAndDiscard() {
         if (state.savedId == null) {
             val f = File(path)
@@ -324,6 +326,22 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
                 state.error?.let { err ->
                     ErrorBanner(err)
                     Spacer(Modifier.height(10.dp))
+                    if (models.isEmpty()) {
+                        SecondaryButton(
+                            text = t("افتح الموديلات والمفاتيح", "Open models & keys"),
+                            onClick = {
+                                context.startActivity(
+                                    android.content.Intent(context, com.scan.app.MainActivity::class.java)
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        .putExtra(
+                                            com.scan.app.MainActivity.EXTRA_SCREEN,
+                                            com.scan.app.MainActivity.EXTRA_SCREEN_MODELS
+                                        )
+                                )
+                            }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
                 if (state.results.isNotEmpty()) {
                     ResultPane(state.results)
