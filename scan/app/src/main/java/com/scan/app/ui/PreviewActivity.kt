@@ -105,8 +105,6 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
     var brushFraction by remember { mutableStateOf(0.06f) }
     val models = remember { vm.selectedModels() }
 
-    androidx.activity.compose.BackHandler { closeAndDiscard() }
-
     fun closeAndDiscard() {
         if (state.savedId == null) {
             val f = File(path)
@@ -114,6 +112,8 @@ fun PreviewScreen(path: String, onClose: () -> Unit) {
         }
         onClose()
     }
+
+    androidx.activity.compose.BackHandler { closeAndDiscard() }
 
     Scaffold(
         containerColor = ScanColors.Bg,
