@@ -74,6 +74,13 @@ class PreviewActivity : ComponentActivity() {
         }
     }
 
+    /** A second capture arriving while a preview is open must load the new image. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getStringExtra(EXTRA_PATH) != null) recreate()
+    }
+
     companion object {
         const val EXTRA_PATH = "extra_path"
 
