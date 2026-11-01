@@ -1,4 +1,4 @@
-lint issues: Information=4, Warning=26
+lint issues: Error=1, Information=5, Warning=26
 ---
 Warning	OldTargetApi	app/build.gradle.kts:16	Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the `android.os.Build.VERSION_CODES` javadoc for details.
 Warning	BatteryLife	app/util/PowerUtils.kt:30	Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html
@@ -12,7 +12,8 @@ Warning	GradleDependency	app/build.gradle.kts:58	A newer version of androidx.roo
 Warning	GradleDependency	app/build.gradle.kts:59	A newer version of androidx.room:room-compiler than 2.6.1 is available: 2.8.5
 Warning	GradleDependency	app/build.gradle.kts:60	A newer version of androidx.security:security-crypto than 1.1.0-alpha06 is available: 1.1.0
 Warning	MutableCollectionMutableState	app/ui/BlurEditor.kt:52	Creating a MutableState object with a mutable collection type
-Warning	ObsoleteSdkInt	app/capture/CaptureService.kt:229	Unnecessary; SDK_INT is always >= 26
+Error	ProduceStateDoesNotAssignValue	app/ui/SourceScreen.kt:320	produceState calls should assign `value` inside the producer lambda
+Warning	ObsoleteSdkInt	app/capture/CaptureService.kt:240	Unnecessary; SDK_INT is always >= 26
 Warning	ObsoleteSdkInt	app/capture/LensService.kt:85	Unnecessary; SDK_INT is always >= 26
 Warning	ObsoleteSdkInt	app/util/Notifications.kt:29	Unnecessary; SDK_INT is never < 26
 Warning	ObsoleteSdkInt	app/src/main/res/mipmap-anydpi-v26:	This folder configuration (`v26`) is unnecessary; `minSdkVersion` is 26. Merge all the resources in this folder into `mipmap-anydpi`.
@@ -23,6 +24,6 @@ Warning	StaticFieldLeak	app/capture/LensController.kt:53	Do not place Android co
 Warning	UnusedResources	app/src/main/res/values/colors.xml:5	The resource `R.color.scan_accent` appears to be unused
 Warning	ClickableViewAccessibility	app/capture/LensController.kt:116	Custom view ``LensBubbleView`` has `setOnTouchListener` called on it but does not override `performClick`
 Warning	ClickableViewAccessibility	app/capture/LensController.kt:138	`onTouch` lambda should call `View#performClick` when a click is detected
-Warning	ClickableViewAccessibility	app/capture/LensController.kt:500	Custom view ``LinearLayout`` has `setOnTouchListener` called on it but does not override `performClick`
-Warning	ClickableViewAccessibility	app/capture/LensController.kt:500	`onTouch` lambda should call `View#performClick` when a click is detected
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:501	Custom view ``LinearLayout`` has `setOnTouchListener` called on it but does not override `performClick`
+Warning	ClickableViewAccessibility	app/capture/LensController.kt:501	`onTouch` lambda should call `View#performClick` when a click is detected
 Warning	ClickableViewAccessibility	app/capture/SelectionOverlayView.kt:116	Custom view `SelectionOverlayView` overrides `onTouchEvent` but not `performClick`
