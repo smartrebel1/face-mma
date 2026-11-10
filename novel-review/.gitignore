@@ -1,0 +1,4 @@
+# Keep the novel text private: only the password-protected archive is tracked.
+*
+!.gitignore
+!Harb-Al-Oqool-Files.zip
